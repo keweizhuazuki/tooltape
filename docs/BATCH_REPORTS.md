@@ -114,10 +114,17 @@ Get-Content fixture-report.json
 exit $status
 ```
 
-These examples use the one checked-in v2 fixture. Add each reviewed fixture path explicitly as your corpus grows. Multi-pair comparison manifests, automatic baseline updates and candidate recording are outside this command's scope.
+These redirection examples use the checked-in v2 retry fixture. Add each reviewed fixture path explicitly as your corpus grows. Multi-pair comparison manifests, automatic baseline updates and candidate recording are outside this command's scope.
 
 ## Verified platforms
 
-[Run 38042920703](https://github.com/keweizhuazuki/tooltape/actions/runs/38042920703) passed all six Linux/macOS/Windows × Java 17/21 builds. Linux/macOS ran 100 batch subprocess scenarios, including FIFO, character-device and symlink checks. Windows ran 94 scenarios, including symlinks and the measured quoted-Unicode limitation; the Unix device/FIFO fixtures and invalid Windows wildcard filename are explicitly unavailable there. This is not a claim that Windows named pipes were tested.
+[Run 38046405558](https://github.com/keweizhuazuki/tooltape/actions/runs/38046405558), commit `a89ba0f`, passed all six Linux/macOS/Windows × Java 17/21 builds, including the packaged CLI:
 
-The downloaded distribution JAR passed its SHA-256 check and five isolated consumer scenarios: mixed versions, required-v2 rejection, continuation after a missing file, 64 inputs and preflight rejection of 65 inputs. Existing 164 single-command subprocess scenarios and 24 JUnit tests also passed.
+- Linux/macOS: 234 manifest-suite processes, comprising 225 native Main launches, six namespace-only injections, two invalid-path injections and one argv probe. All tested POSIX unreadable-file, FIFO/device and symlink cases ran.
+- Windows: 215 processes, comprising 206 native Main launches and the same nine diagnostic processes. Unicode snow/emoji/spaced paths through an ASCII manifest argument passed without an injection bridge, including conflicting-CWD decoys, both schema modes and UTF-8/US-ASCII child defaults.
+- Windows native-invalid wildcard/quote names produce indexed errors; those names are literal files on POSIX. Windows POSIX-permission/FIFO/device checks are unavailable. Symlinked-manifest parent resolution passed; the symlink/`..` distinction is unavailable because the tested Windows provider collapses parent segments. No Windows named-pipe or cross-platform-identical symlink traversal claim is made.
+- An initial test incorrectly assumed an embedded quote in a native manifest argument would survive Windows parsing. A code-point probe measured removal of exactly U+0022. Native transport and exact in-child path rejection are now tested separately, without accepting arbitrary argument mutations or weakening application errors.
+
+The existing positional suite still passes (100 processes on Linux/macOS, 94 on Windows), including its original Windows Unicode argv limitation checks. The manifest feature does not change that behavior. Existing 164 single-command processes, eight direct calls, 35 core JUnit tests and the optional Jupiter compatibility matrix remain separate checks.
+
+The checksummed hosted JAR also passed eight isolated consumer cases outside the checkout: Unicode names with wrong-CWD decoys, required-v2 rejection, missing-file continuation, BOM, 64/65 inputs, invalid path schema and byte limits. The actual Unicode-named example produces the existing sample reports byte-for-byte. These are concrete transport/validation checks, not claims of general Unicode shell compatibility or a filesystem sandbox.

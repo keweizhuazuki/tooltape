@@ -46,7 +46,7 @@ CI 提供经过验证的 JAR 和 SHA-256 校验文件，尚未发布到 Maven Ce
 当前经过验证的 v0.2 构建可从对应成功的 CI 下载：
 
 ```sh
-gh run download 38042920703 --repo keweizhuazuki/tooltape --name tooltape-dist-9813415d22ccc406a47a64cdfe254093a00536c7
+gh run download 38046405558 --repo keweizhuazuki/tooltape --name tooltape-dist-a89ba0f9e7c625afe0263ba3940ee7d261cddf7f
 sha256sum -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
@@ -171,10 +171,12 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 验证状态
 
+- UTF-8 清单：[六组平台/JDK 运行](https://github.com/keweizhuazuki/tooltape/actions/runs/38046405558)通过了从冲突工作目录启动真实打包 CLI、读取 Unicode/emoji/空格文件名的测试。Linux/macOS 执行 234 个进程，Windows 执行 215 个，原生调用和诊断桥接分别计数。[已测边界 →](docs/BATCH_REPORTS.zh-CN.md#已验证平台)
+
 - 可选 Jupiter 适配器：20 项测试在本地 5.14.4 和 6.0.3 下均通过，包含真实 JAR 资源及命名动态子测试结果。[已验证的二进制消费运行](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449)在 Java 17/21 × Jupiter 5.14.4/6.0.3 四组组合中各通过 7 项消费者测试，使用同一份适配器 JAR；兼容范围仅限明确验证的版本。
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 35 项核心 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
-- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/11/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
+- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/12/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)通过 153 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
