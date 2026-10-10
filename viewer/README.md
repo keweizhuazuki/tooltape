@@ -50,7 +50,9 @@ Each event row contains exactly six tab-separated fields:
 | `status` | `OK` or `ERROR` |
 | `output` | Unpadded base64url-encoded canonical JSON object for `OK`, or error class text for `ERROR` |
 
-Files require UTF-8 without a BOM, LF line endings, and a final newline. Tool identifiers must match `[A-Za-z0-9_.:-]{1,128}`. Error class names must match `[A-Za-z_$][A-Za-z0-9_.$]*`. Inputs and successful outputs must be JSON objects; nested arrays and other JSON values are supported within those objects. Empty encoded fields decode successfully but fail these field-specific requirements. Malformed headers, columns, integers, status values, base64url, UTF-8, duplicate JSON keys, nesting beyond 64 levels, and invalid JSON produce an inline error with the line number where applicable. See [the v1/v2 format specification](../docs/FORMAT.md).
+Files require UTF-8 without a BOM, LF line endings, and a final newline. Tool identifiers must match `[A-Za-z0-9_.:-]{1,128}`. Error class labels may contain qualified Unicode identifier segments, capped at 1,024 UTF-16 units, with control/format characters excluded. Inputs and successful outputs must be JSON objects; nested arrays and other JSON values are supported within those objects. Empty encoded fields decode successfully but fail these field-specific requirements. Malformed headers, columns, integers, status values, base64url, UTF-8, duplicate JSON keys, nesting beyond 64 levels, and invalid JSON produce an inline error with the line number where applicable. See [the v1/v2 format specification](../docs/FORMAT.md).
+
+Raw JSON, canonical JSON and aggregate canonical event payloads each have a 16 MiB UTF-8 budget. Numeric tokens/plain-decimal output are limited to 10,000 characters and value trees to 100,000 nodes. Expansion is checked before padding allocation, so small exponent-encoded files cannot consume unbounded memory.
 
 ## Comparison rules
 

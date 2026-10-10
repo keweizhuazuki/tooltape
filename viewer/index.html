@@ -65,6 +65,8 @@ const $ = id => document.getElementById(id);
 const state = { tape: null, comparison: null, selected: 0, limit: 250, difference: null, openVersion: 0, compareVersion: 0 };
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_CALLS = 50000;
+const MAX_NUMBER_CHARS = 10000;
+const MAX_JSON_NODES = 100000;
 const MAX_DISPLAY_CHARS = 100000;
 const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 const compareFields = [['index', 'call index'], ['name', 'tool name'], ['input', 'input'], ['status', 'status'], ['output', 'output / error']];
@@ -85,25 +87,54 @@ function decodeField(value, line, column) {
     return decoder.decode(Uint8Array.from(raw, char => char.charCodeAt(0)));
   } catch (_) { throw new Error('Line ' + line + ': invalid base64url or UTF-8 in ' + column + '.'); }
 }
-function canonicalJson(source, line, column) {
-  // A small lossless parser mirrors the Java codec: sorted keys, decimal numbers,
-  // duplicate-key rejection, and a 64-level nesting bound. Never parses numbers
-  // through JavaScript Number, so 9223372036854775807 and adjacent values differ.
-  let offset = 0;
+// Count UTF-8 without allocating a second byte buffer, stopping once a limit is exceeded.
+function utf8Bytes(value, limit = MAX_BYTES) {
+  let bytes = 0;
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 0x80) bytes++;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length && value.charCodeAt(i + 1) >= 0xdc00 && value.charCodeAt(i + 1) <= 0xdfff) { bytes += 4; i++; }
+    else bytes += 3;
+    if (bytes > limit) break;
+  }
+  return bytes;
+}
+function reserveEventBytes(budget, bytes, line) {
+  if (budget.bytes + bytes > MAX_BYTES) throw new Error('Line ' + line + ': canonical event data exceeds the 16 MiB limit.');
+  budget.bytes += bytes;
+}
+function canonicalJson(source, line, column, eventBudget = null) {
+  // A lossless parser mirrors the Java codec: sorted keys, bounded plain decimals,
+  // duplicate-key rejection, and a 64-level nesting bound. Every output byte is
+  // reserved before expansion, including escaped strings, keys and punctuation.
+  let offset = 0, canonicalBytes = 0, nodes = 0;
   const fail = detail => { throw new Error('Line ' + line + ': ' + column + ' ' + detail + ' (offset ' + offset + ').'); };
+  if (source.length > MAX_BYTES || utf8Bytes(source) > MAX_BYTES) fail('JSON input exceeds the 16 MiB UTF-8 limit');
+  const reserve = bytes => {
+    if (canonicalBytes + bytes > MAX_BYTES) fail('canonical JSON exceeds the 16 MiB UTF-8 limit');
+    if (eventBudget) reserveEventBytes(eventBudget, bytes, line);
+    canonicalBytes += bytes;
+  };
   const whitespace = () => { while (offset < source.length && /[ \n\r\t]/.test(source[offset])) offset++; };
   function quote(value) {
-    let text = '"';
+    let bytes = 2;
+    const remaining = Math.min(MAX_BYTES - canonicalBytes, eventBudget ? MAX_BYTES - eventBudget.bytes : MAX_BYTES);
     for (let i = 0; i < value.length; i++) {
-      const c = value[i], code = value.charCodeAt(i);
-      if (c === '"' || c === '\\') text += '\\' + c;
-      else if (c === '\n') text += '\\n';
-      else if (c === '\r') text += '\\r';
-      else if (c === '\t') text += '\\t';
-      else if (code < 32 || (code >= 0xd800 && code <= 0xdfff)) text += '\\u' + code.toString(16).padStart(4, '0');
-      else text += c;
+      const code = value.charCodeAt(i);
+      if (code === 34 || code === 92 || code === 10 || code === 13 || code === 9) bytes += 2;
+      else if (code < 32 || (code >= 0xd800 && code <= 0xdfff)) bytes += 6;
+      else bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : 3;
+      if (bytes > remaining) reserve(bytes); // Throws before allocating escaped output.
     }
-    return text + '"';
+    reserve(bytes);
+    return '"' + value.replace(/["\\\u0000-\u001f\ud800-\udfff]/g, c => {
+      if (c === '"' || c === '\\') return '\\' + c;
+      if (c === '\n') return '\\n';
+      if (c === '\r') return '\\r';
+      if (c === '\t') return '\\t';
+      return '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0');
+    }) + '"';
   }
   function string() {
     if (source[offset] !== '"') fail('contains invalid JSON');
@@ -121,7 +152,9 @@ function canonicalJson(source, line, column) {
   }
   function number() {
     const start = offset;
-    while (offset < source.length && /[0-9eE+.-]/.test(source[offset])) offset++;
+    while (offset < source.length && /[0-9eE+.-]/.test(source[offset])) {
+      if (++offset - start > MAX_NUMBER_CHARS) fail('contains a numeric literal exceeding 10,000 characters');
+    }
     const token = source.slice(start, offset);
     if (!/^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/.test(token)) fail('contains an invalid JSON number');
     const match = token.match(/^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/);
@@ -130,23 +163,27 @@ function canonicalJson(source, line, column) {
     let scale = BigInt(fraction.length) - exponent;
     if (scale < -10000n || scale > 10000n) fail('contains a number whose decimal scale exceeds 10,000');
     let digits = (match[2] + fraction).replace(/^0+/, '');
-    if (!digits) return '0';
+    if (!digits) { reserve(1); return '0'; }
     let end = digits.length;
     while (end > 0 && digits[end - 1] === '0') end--;
     scale -= BigInt(digits.length - end);
     digits = digits.slice(0, end);
     const point = digits.length - Number(scale);
+    const length = match[1].length + (point <= 0 ? 2 - point + digits.length : point >= digits.length ? point : digits.length + 1);
+    if (length > MAX_NUMBER_CHARS) fail('contains a canonical number exceeding 10,000 characters');
+    reserve(length);
     if (point <= 0) return match[1] + '0.' + '0'.repeat(-point) + digits;
     if (point >= digits.length) return match[1] + digits + '0'.repeat(point - digits.length);
     return match[1] + digits.slice(0, point) + '.' + digits.slice(point);
   }
   function value(depth) {
+    if (++nodes > MAX_JSON_NODES) fail('exceeds the 100,000 JSON value limit');
     if (depth > 64) fail('exceeds 64 levels of JSON nesting');
     whitespace();
     const c = source[offset];
     if (c === '"') return quote(string());
     if (c === '{') {
-      offset++; whitespace();
+      reserve(2); offset++; whitespace();
       const entries = [], keys = new Set();
       if (source[offset] === '}') { offset++; return '{}'; }
       while (offset < source.length) {
@@ -154,32 +191,51 @@ function canonicalJson(source, line, column) {
         if (keys.has(key)) fail('contains a duplicate JSON key');
         keys.add(key); whitespace();
         if (source[offset++] !== ':') fail('contains invalid JSON');
-        entries.push([key, value(depth + 1)]); whitespace();
+        if (entries.length) reserve(1);
+        reserve(1); const quotedKey = quote(key);
+        entries.push([key, quotedKey, value(depth + 1)]); whitespace();
         const separator = source[offset++];
-        if (separator === '}') return '{' + entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0).map(([key, v]) => quote(key) + ':' + v).join(',') + '}';
+        if (separator === '}') {
+          entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+          const chunks = ['{'];
+          for (const [, quoted, v] of entries) {
+            if (chunks.length > 1) chunks.push(',');
+            chunks.push(quoted, ':', v);
+          }
+          chunks.push('}'); return chunks;
+        }
         if (separator !== ',') fail('contains invalid JSON');
       }
       fail('contains an unterminated JSON object');
     }
     if (c === '[') {
-      offset++; whitespace(); const values = [];
+      reserve(2); offset++; whitespace(); const values = ['['];
       if (source[offset] === ']') { offset++; return '[]'; }
       while (offset < source.length) {
+        if (values.length > 1) { reserve(1); values.push(','); }
         values.push(value(depth + 1)); whitespace();
         const separator = source[offset++];
-        if (separator === ']') return '[' + values.join(',') + ']';
+        if (separator === ']') { values.push(']'); return values; }
         if (separator !== ',') fail('contains invalid JSON');
       }
       fail('contains an unterminated JSON array');
     }
-    for (const literal of ['true', 'false', 'null']) if (source.startsWith(literal, offset)) { offset += literal.length; return literal; }
+    for (const literal of ['true', 'false', 'null']) if (source.startsWith(literal, offset)) { reserve(literal.length); offset += literal.length; return literal; }
     return number();
   }
   whitespace();
   if (source[offset] !== '{') fail('must be a JSON object');
   const result = value(0); whitespace();
   if (offset !== source.length) fail('contains trailing JSON data');
-  return result;
+  // Flatten only once, after all bytes are budgeted. Keeping child chunks avoids
+  // recopying a large expanded value at every nesting level.
+  const chunks = [];
+  function flatten(value) {
+    if (typeof value === 'string') chunks.push(value);
+    else for (const part of value) flatten(part);
+  }
+  flatten(result);
+  return chunks.join('');
 }
 function parseMetadata(line) {
   if (!line || !line.startsWith('META\t') || line.split('\t').length !== 2) throw new Error('Line 2: v2 requires a META line with one base64url metadata field.');
@@ -193,6 +249,7 @@ function parseMetadata(line) {
   return metadata;
 }
 function parseTape(text, name) {
+  if (text.length > MAX_BYTES || utf8Bytes(text) > MAX_BYTES) throw new Error('This file exceeds the 16 MiB viewer limit.');
   if (!text.endsWith('\n')) throw new Error('Truncated tape: a final LF newline is required.');
   if (text.includes('\r')) throw new Error('ToolTape requires LF line endings; CRLF is not supported.');
   const lines = text.split('\n');
@@ -203,6 +260,7 @@ function parseTape(text, name) {
   let completeness = schemaVersion === 2 ? 'incomplete' : 'legacy';
   const calls = [];
   let totalNanos = 0n;
+  const eventBudget = { bytes: 0 };
   let errors = 0;
   for (let n = schemaVersion === 2 ? 2 : 1; n < lines.length; n++) {
     const parts = lines[n].split('\t');
@@ -222,10 +280,12 @@ function parseTape(text, name) {
     if (status !== 'OK' && status !== 'ERROR') throw new Error('Line ' + (n + 1) + ': status must be OK or ERROR.');
     const toolName = decodeField(name64, n + 1, 'tool name');
     if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(toolName)) throw new Error('Line ' + (n + 1) + ': tool name must be a static identifier of 1–128 characters.');
-    const input = canonicalJson(decodeField(input64, n + 1, 'input'), n + 1, 'input');
+    reserveEventBytes(eventBudget, toolName.length + status.length, n + 1);
+    const input = canonicalJson(decodeField(input64, n + 1, 'input'), n + 1, 'input', eventBudget);
     const decodedOutput = decodeField(output64, n + 1, 'output');
-    const output = status === 'OK' ? canonicalJson(decodedOutput, n + 1, 'output') : decodedOutput;
-    if (status === 'ERROR' && !/^[A-Za-z_$][A-Za-z0-9_.$]*$/.test(output)) throw new Error('Line ' + (n + 1) + ': ERROR output must be a Java exception class name.');
+    const output = status === 'OK' ? canonicalJson(decodedOutput, n + 1, 'output', eventBudget) : decodedOutput;
+    if (status === 'ERROR' && (output.length > 1024 || !/^[\p{L}\p{Nl}\p{Sc}\p{Pc}][\p{L}\p{Nl}\p{Sc}\p{Pc}\p{Nd}\p{Mc}\p{Mn}]*(?:\.[\p{L}\p{Nl}\p{Sc}\p{Pc}][\p{L}\p{Nl}\p{Sc}\p{Pc}\p{Nd}\p{Mc}\p{Mn}]*)*$/u.test(output))) throw new Error('Line ' + (n + 1) + ': ERROR output must be a Java exception class name.');
+    if (status === 'ERROR') reserveEventBytes(eventBudget, utf8Bytes(output), n + 1);
     const duration = BigInt(nanos);
     if (duration > 9223372036854775807n) throw new Error('Line ' + (n + 1) + ': durationNanos exceeds the signed 64-bit range.');
     totalNanos += duration;

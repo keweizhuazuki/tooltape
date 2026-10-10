@@ -27,9 +27,26 @@ public final class Recorder implements Tool, AutoCloseable {
     this.policy = Objects.requireNonNull(policy);
     Tape.Metadata metadata = new Tape.Metadata(policy.identifier(), source);
     String preamble = Tape.HEADER_V2 + "\n" + metadata.line() + "\n";
-    writer =
-        Files.newBufferedWriter(
-            path, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+    if (path.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+      var channel =
+          Files.newByteChannel(
+              path,
+              Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+              java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+                  java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
+      writer =
+          new BufferedWriter(
+              new OutputStreamWriter(
+                  java.nio.channels.Channels.newOutputStream(channel), StandardCharsets.UTF_8));
+    } else {
+      // Windows and non-POSIX providers inherit their native ACLs; do not imply POSIX protection.
+      writer =
+          Files.newBufferedWriter(
+              path,
+              StandardCharsets.UTF_8,
+              StandardOpenOption.CREATE_NEW,
+              StandardOpenOption.WRITE);
+    }
     try {
       writer.write(preamble);
       writer.flush();
@@ -52,6 +69,7 @@ public final class Recorder implements Tool, AutoCloseable {
       if (closed || poisoned) throw new IllegalStateException("Recorder is closed or failed");
       Tape.validateName(name);
       String input = Json.write(policy.input(arguments));
+      preflight(name, input);
       long start = System.nanoTime();
       Map<String, Object> result;
       try {
@@ -85,7 +103,7 @@ public final class Recorder implements Tool, AutoCloseable {
                 input,
                 "OK",
                 Json.write(policy.output(result))));
-      } catch (Exception failure) {
+      } catch (Exception | Error failure) {
         poisoned = true;
         throw failure;
       }
@@ -93,6 +111,23 @@ public final class Recorder implements Tool, AutoCloseable {
     } finally {
       busy.set(false);
     }
+  }
+
+  private void preflight(String name, String input) throws IOException {
+    // If even an empty OK result cannot fit, the live call must not happen.
+    long encodedInput = (4L * input.getBytes(StandardCharsets.UTF_8).length + 2) / 3;
+    long minimumEvent =
+        Integer.toString(index).length()
+            + 19L
+            + Tape.encode(name).length()
+            + encodedInput
+            + 2
+            + 3
+            + 5
+            + 1;
+    if (bytes + minimumEvent + 15 > Tape.MAX_BYTES)
+      throw new IOException(
+          "Sanitized input cannot fit the remaining tape budget; tool was not executed");
   }
 
   private void append(Tape.Event event) throws IOException {

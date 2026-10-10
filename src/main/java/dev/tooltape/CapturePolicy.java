@@ -11,7 +11,7 @@ public final class CapturePolicy {
   public static final String REDACTED = "[REDACTED]";
   private static final Pattern SECRET =
       Pattern.compile(
-          ".*(password|passwd|secret|token|authorization|cookie|api.?key|credential|private.?key).*",
+          "(password|passwd|secret|token|authorization|cookie|apikey|credential|privatekey)",
           Pattern.CASE_INSENSITIVE);
   private final Set<String> inputs, outputs;
 
@@ -34,7 +34,7 @@ public final class CapturePolicy {
         Json.write(
             Map.of(
                 "algorithm",
-                "scalar-v1",
+                "scalar-v2",
                 "inputs",
                 inputs.stream().sorted().toList(),
                 "outputs",
@@ -62,7 +62,7 @@ public final class CapturePolicy {
     value.forEach(
         (k, v) -> {
           Objects.requireNonNull(k);
-          if (SECRET.matcher(k).matches()) return;
+          if (SECRET.matcher(k.replaceAll("[^A-Za-z0-9]", "")).find()) return;
           if (allowed.contains(k)) {
             if (v == null || v instanceof String || v instanceof Boolean || v instanceof Number)
               result.put(k, v);

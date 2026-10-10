@@ -115,7 +115,7 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 
 `Tool` accepts and returns `Map<String,Object>` of JSON-compatible data. Recorded output is sanitized, so allow the fields your workflow requires. Only explicitly allowed top-level scalars are captured; nested values become `[REDACTED]`. Credential-like field names are always excluded. Excluded input fields cannot be regression-checked.
 
-New recordings are schema v2. They store a SHA-256 identity of the allowlist configuration and an optional static source label (`new Recorder(path, tool, policy, "my-workflow")`). Replay rejects policy changes and recordings without a valid closed-session marker before executing your workflow. Closing a recording is not proof of business success. Existing v1 fixtures remain readable with policy/completeness checks unavailable.
+New recordings are schema v2. The hardened `scalar-v2` policy deliberately rejects earlier v2 fingerprints; [migration details](docs/SPRING_AI.md#policy-hardening-migration) explain why fixtures must be reviewed and re-recorded. They store a SHA-256 identity of the allowlist configuration and an optional static source label (`new Recorder(path, tool, policy, "my-workflow")`). Replay rejects policy changes and recordings without a valid closed-session marker before executing your workflow. Closing a recording is not proof of business success. Existing v1 fixtures remain readable with policy/completeness checks unavailable.
 
 Recorded exceptions use `Replay.RecordedToolException.originalType()`, not the original Java subclass. Normalize errors in a domain adapter when business code branches on exception type. The executable [retry example](examples/RetryRegression.java) shows this explicitly.
 
@@ -127,7 +127,9 @@ mvn test
 
 [RegressionJUnitTest](src/test/java/dev/tooltape/RegressionJUnitTest.java) contains a checked-in failure fixture, complete replay assertion and changed-argument failure. `mvn install` installs the library locally for another Maven project; coordinates are `dev.tooltape:tooltape:0.2.0` and are **not** remotely published.
 
-[Spring AI / kewei-ai-agent adapter guide →](docs/SPRING_AI.md)
+[Verified Spring AI / kewei-ai-agent integration →](docs/SPRING_AI.md)
+
+The optional application adapter is merged and tested through its real `think → act` dispatch with a fake model: 22 focused integration tests and packaging passed. It stays off by default, pins ToolTape source, preserves ToolContext in memory and fails clearly if output was not captured. It is not a separately published framework module.
 
 ## Inspect and compare
 
@@ -147,12 +149,14 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Verification
 
-- Local Linux/JDK 21: **45 dependency-free acceptance checks + 13 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
+- Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998596): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 170 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
 
+- Hardening: normalized credential keys, bounded exponent expansion/node counts, preflight input budgets and owner-only new POSIX recordings
+- Real opt-in kewei-ai-agent integration, with reviewed-output capture and no live callback during replay
 - Policy-bound v2 recording sessions, explicit source labels and close markers; incomplete/mismatched-policy replay fails before calls
 - Backward-compatible v1 reading, clear legacy/incomplete states in CLI and viewer
 - RFC 6901 JSON-pointer locations for the first differing input/output

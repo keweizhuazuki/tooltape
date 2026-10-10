@@ -7,54 +7,145 @@ import java.util.*;
 public final class Json {
   private Json() {}
 
+  public static final int MAX_BYTES = 16 * 1024 * 1024;
+  public static final int MAX_NUMBER_LENGTH = 10000;
+  public static final int MAX_NODES = 100000;
+
+  /** Canonical JSON with an incremental UTF-8 budget, including exponent expansion. */
   public static String write(Object value) {
-    if (value == null) return "null";
-    if (value instanceof String s) {
-      StringBuilder b = new StringBuilder("\"");
-      for (char c : s.toCharArray()) {
+    Writer writer = new Writer();
+    writer.value(value, 0);
+    return writer.out.toString();
+  }
+
+  private static final class Writer {
+    final StringBuilder out = new StringBuilder();
+    int bytes;
+    int nodes;
+
+    void reserve(long count) {
+      if (count > MAX_BYTES - bytes)
+        throw new IllegalArgumentException("Canonical JSON exceeds 16 MiB");
+    }
+
+    void append(char c) {
+      int size = c <= 0x7f ? 1 : c <= 0x7ff ? 2 : 3;
+      reserve(size);
+      out.append(c);
+      bytes += size;
+    }
+
+    void ascii(String text) {
+      reserve(text.length());
+      out.append(text);
+      bytes += text.length();
+    }
+
+    void string(String text) {
+      append('"');
+      for (int i = 0; i < text.length(); i++) {
+        char c = text.charAt(i);
         switch (c) {
-          case '"' -> b.append("\\\"");
-          case '\\' -> b.append("\\\\");
-          case '\n' -> b.append("\\n");
-          case '\r' -> b.append("\\r");
-          case '\t' -> b.append("\\t");
+          case '"' -> ascii("\\\"");
+          case '\\' -> ascii("\\\\");
+          case '\n' -> ascii("\\n");
+          case '\r' -> ascii("\\r");
+          case '\t' -> ascii("\\t");
           default -> {
-            if (c < 32 || Character.isSurrogate(c)) b.append(String.format("\\u%04x", (int) c));
-            else b.append(c);
+            if (c < 32 || Character.isSurrogate(c)) ascii(String.format("\\u%04x", (int) c));
+            else append(c);
           }
         }
       }
-      return b.append('"').toString();
+      append('"');
     }
-    if (value instanceof Boolean) return value.toString();
-    if (value instanceof Number n) {
-      try {
-        return new BigDecimal(n.toString()).stripTrailingZeros().toPlainString();
-      } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("Non-finite or unsupported number");
+
+    void value(Object value, int depth) {
+      if (++nodes > MAX_NODES)
+        throw new IllegalArgumentException("JSON value count exceeds 100000");
+      if (depth > 64) throw new IllegalArgumentException("JSON nesting exceeds 64");
+      if (value == null) {
+        ascii("null");
+        return;
       }
+      if (value instanceof String text) {
+        string(text);
+        return;
+      }
+      if (value instanceof Boolean) {
+        ascii(value.toString());
+        return;
+      }
+      if (value instanceof Number n) {
+        String raw = n.toString();
+        if (raw.length() > MAX_NUMBER_LENGTH)
+          throw new IllegalArgumentException("Numeric literal exceeds 10000 characters");
+        try {
+          BigDecimal decimal = new BigDecimal(raw);
+          if (Math.abs((long) decimal.scale()) > 10000)
+            throw new IllegalArgumentException("Numeric scale exceeds 10000");
+          decimal = decimal.stripTrailingZeros();
+          int precision = decimal.precision(), scale = decimal.scale();
+          long length =
+              decimal.signum() == 0
+                  ? 1
+                  : scale <= 0
+                      ? (long) precision - scale
+                      : precision > scale ? (long) precision + 1 : (long) scale + 2;
+          if (decimal.signum() < 0) length++;
+          if (length > MAX_NUMBER_LENGTH)
+            throw new IllegalArgumentException("Canonical number exceeds 10000 characters");
+          reserve(length); // Check before toPlainString allocates zero padding.
+          ascii(decimal.toPlainString());
+          return;
+        } catch (NumberFormatException e) {
+          throw new IllegalArgumentException("Non-finite or unsupported number");
+        }
+      }
+      if (value instanceof Map<?, ?> map) {
+        if (map.size() > MAX_NODES)
+          throw new IllegalArgumentException("JSON value count exceeds 100000");
+        TreeMap<String, Object> sorted = new TreeMap<>();
+        map.forEach(
+            (key, item) -> {
+              if (!(key instanceof String))
+                throw new IllegalArgumentException("JSON key must be string");
+              sorted.put((String) key, item);
+            });
+        append('{');
+        boolean first = true;
+        for (var entry : sorted.entrySet()) {
+          if (!first) append(',');
+          first = false;
+          string(entry.getKey());
+          append(':');
+          value(entry.getValue(), depth + 1);
+        }
+        append('}');
+        return;
+      }
+      if (value instanceof List<?> list) {
+        if (list.size() > MAX_NODES)
+          throw new IllegalArgumentException("JSON value count exceeds 100000");
+        append('[');
+        boolean first = true;
+        for (Object item : list) {
+          if (!first) append(',');
+          first = false;
+          value(item, depth + 1);
+        }
+        append(']');
+        return;
+      }
+      throw new IllegalArgumentException("Only JSON values are supported");
     }
-    if (value instanceof Map<?, ?> map) {
-      TreeMap<String, Object> sorted = new TreeMap<>();
-      map.forEach(
-          (k, v) -> {
-            if (!(k instanceof String))
-              throw new IllegalArgumentException("JSON key must be string");
-            sorted.put((String) k, v);
-          });
-      StringJoiner j = new StringJoiner(",", "{", "}");
-      sorted.forEach((k, v) -> j.add(write(k) + ":" + write(v)));
-      return j.toString();
-    }
-    if (value instanceof List<?> list) {
-      StringJoiner j = new StringJoiner(",", "[", "]");
-      list.forEach(v -> j.add(write(v)));
-      return j.toString();
-    }
-    throw new IllegalArgumentException("Only JSON values are supported");
   }
 
   public static Object read(String text) {
+    Objects.requireNonNull(text);
+    if (text.length() > MAX_BYTES
+        || text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_BYTES)
+      throw new IllegalArgumentException("JSON input exceeds 16 MiB");
     Parser p = new Parser(text);
     Object v = p.value(0);
     p.ws();
@@ -102,6 +193,7 @@ public final class Json {
   private static final class Parser {
     final String s;
     int i;
+    int nodes;
 
     Parser(String s) {
       this.s = Objects.requireNonNull(s);
@@ -125,6 +217,8 @@ public final class Json {
     }
 
     Object value(int depth) {
+      if (++nodes > MAX_NODES)
+        throw new IllegalArgumentException("JSON value count exceeds 100000");
       if (depth > 64) throw new IllegalArgumentException("JSON nesting exceeds 64");
       ws();
       if (i >= s.length()) throw bad();
@@ -160,6 +254,8 @@ public final class Json {
         }
       int start = i;
       while (i < s.length() && "0123456789eE+-.".indexOf(s.charAt(i)) >= 0) i++;
+      if (i - start > MAX_NUMBER_LENGTH)
+        throw new IllegalArgumentException("Numeric literal exceeds 10000 characters");
       String n = s.substring(start, i);
       if (!n.matches("-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?")) throw bad();
       try {
@@ -194,7 +290,9 @@ public final class Json {
           case 'u' -> {
             if (i + 4 > s.length()) throw bad();
             try {
-              b.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+              String hex = s.substring(i, i + 4);
+              if (!hex.matches("[0-9A-Fa-f]{4}")) throw bad();
+              b.append((char) Integer.parseInt(hex, 16));
             } catch (NumberFormatException ex) {
               throw bad();
             }
