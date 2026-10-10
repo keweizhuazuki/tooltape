@@ -74,6 +74,8 @@ java -jar target/tooltape.jar inspect target/weather.tape
 
 #### Windows PowerShell
 
+For portable Windows CLI jobs, use ASCII-only full paths. Hosted JDK 17/21 launchers can replace characters outside the active code page before ToolTape receives them; quoting alone does not fix this. UTF-8 tape contents remain supported. [Measured filename limitation →](docs/BATCH_REPORTS.md#windows-filename-transport)
+
 ```powershell
 git clone https://github.com/keweizhuazuki/tooltape.git
 cd tooltape
@@ -164,7 +166,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Verification
 
-- Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 164 single-command and 94 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
+- Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/9/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 

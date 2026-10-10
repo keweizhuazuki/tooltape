@@ -21,6 +21,12 @@ java -jar target/tooltape.jar validate-batch --json --require-v2 fixtures/weathe
 
 只要首个命令为 `validate-batch`，即使缺少 `--json`，也使用安全的批量 JSON 错误格式。整体语法无效，包括零输入或超过 64 个输入时，会在读取任何文件前失败。语法有效后，缺失、格式错误、未关闭或被拒绝的旧录制各自产生结果，不阻止后续文件检查。意外的进程/JVM 故障不会被伪装成完整报告。
 
+## Windows 文件名传递限制
+
+使用 `Cp1252` 的托管 Windows JDK 17/21 启动器会在 ToolTape 收到参数前，将文件名中的 U+96EA 改为 `?`（[诊断运行](https://github.com/keweizhuazuki/tooltape/actions/runs/38042317004)）。加引号或设置 `-Dfile.encoding=UTF-8` 未能保留该字符，这与 [OpenJDK Windows 启动器的代码页转换](https://github.com/openjdk/jdk21u/blob/master/src/java.base/share/native/launcher/main.c#L105-L120)一致。
+
+可移植的 Windows CLI 任务应使用完整路径均为 ASCII 的文件名。其他机器当前代码页能表示的字符可能可用，但不承诺任意 Unicode 命令行参数。文件内部的 UTF-8 内容不受影响。测试分别检查原生参数传递，以及在独立 JVM 内构造 Unicode 路径的情况；后者不证明原生命令行支持。无需且不会修改系统编码设置。
+
 ## 批量报告 v1
 
 stdout 输出一个规范 JSON 文档和一个换行，ToolTape 本身不输出 stderr；JVM 启动诊断不受此保证约束。

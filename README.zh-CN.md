@@ -70,6 +70,8 @@ java -jar target/tooltape.jar inspect target/weather.tape
 
 #### Windows PowerShell
 
+为保证 Windows CLI 可移植性，请使用完整路径均为 ASCII 的文件名。托管 JDK 17/21 启动器可能在 ToolTape 收到参数前替换当前代码页不支持的字符，单纯加引号无法解决；文件内部 UTF-8 内容仍受支持。[已测得的文件名限制 →](docs/BATCH_REPORTS.zh-CN.md#windows-文件名传递限制)
+
 ```powershell
 git clone https://github.com/keweizhuazuki/tooltape.git
 cd tooltape
@@ -159,7 +161,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 验证状态
 
-- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 164 个单命令及 94 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
+- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/9/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)通过 153 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 

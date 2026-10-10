@@ -21,6 +21,12 @@ Use a batch when a CI job should check every explicitly listed fixture and save 
 
 Any invocation beginning with `validate-batch` uses the safe batch JSON error format, even if `--json` is missing. Invalid overall syntax, including zero or more than 64 inputs, fails before reading any input. Once syntax is accepted, missing, malformed, incomplete and rejected-legacy files each produce a result and do not stop later inputs. Unexpected process/JVM failures are not converted into a claimed complete report.
 
+## Windows filename transport
+
+The hosted Windows JDK 17/21 launchers using `Cp1252` changed the filename character U+96EA to `?` before ToolTape received the arguments ([diagnostic run](https://github.com/keweizhuazuki/tooltape/actions/runs/38042317004)). Quoting and `-Dfile.encoding=UTF-8` did not preserve it. This matches the [OpenJDK Windows launcher code-page conversion](https://github.com/openjdk/jdk21u/blob/master/src/java.base/share/native/launcher/main.c#L105-L120).
+
+Use ASCII-only full paths for portable Windows CLI jobs. A filename representable in another machine's active code page may work there, but arbitrary Unicode argv support is not promised. UTF-8 fixture contents are unaffected. Tests distinguish native argument transport from a separate child-JVM Unicode-path check; the latter does not prove native CLI transport. No system encoding changes are required or performed.
+
 ## Batch report version 1
 
 A batch emits one canonical JSON document plus one literal newline on stdout, with no application stderr. JVM startup diagnostics remain outside ToolTape's control.

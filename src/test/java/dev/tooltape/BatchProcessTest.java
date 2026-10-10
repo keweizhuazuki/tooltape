@@ -25,6 +25,8 @@ import java.util.regex.Pattern;
 public final class BatchProcessTest {
   private static final int MAX_OUTPUT_BYTES = 64 * 1024;
   private static final String INVALID_PATH_TOKEN = "PRIVATE_INVALID_PATH_TOKEN_";
+  private static final String UNICODE_PATH_TOKEN = "PRIVATE_UNICODE_PATH_TOKEN_";
+  private static final String UNICODE_FILENAME = "PRIVATE_PATH_unicode_\u96ea.tape";
   private static final String FIELD = "PRIVATE_FIELD_/~\"\n";
   private static final String INPUT = "PRIVATE_INPUT_\"\\\n\r\t\u0001\u96ea";
   private static final String OUTPUT = "PRIVATE_OUTPUT_\"\\\n\r\t\u0002\u96ea";
@@ -41,6 +43,7 @@ public final class BatchProcessTest {
   private static int processes;
   private static final List<String> optionalChecks = new ArrayList<>();
   private static final List<String> optionalSkips = new ArrayList<>();
+  private static final List<String> filenameChecks = new ArrayList<>();
 
   private final Path directory;
   private Fixture closed;
@@ -68,6 +71,7 @@ public final class BatchProcessTest {
       test.invalidArguments();
       test.invalidPaths();
       test.literalFilenames();
+      test.unicodeFilenames();
       test.maximumBatch();
       test.nonregularFiles();
       System.out.println(
@@ -78,6 +82,7 @@ public final class BatchProcessTest {
               + " processes (bounds, order, exits, schemas, privacy)");
       System.out.println(
           "Optional filesystem checks: " + optionalChecks + "; unavailable: " + optionalSkips);
+      System.out.println("Filename transport checks: " + filenameChecks);
     } finally {
       try (var paths = Files.walk(directory)) {
         for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
@@ -297,7 +302,7 @@ public final class BatchProcessTest {
   private void literalFilenames() throws Exception {
     for (String name :
         List.of(
-            "PRIVATE_PATH_with spaces \u96ea.tape",
+            "PRIVATE_PATH_with spaces.tape",
             "--json",
             "--require-v2",
             "--PRIVATE_UNKNOWN_OPTION_",
@@ -336,6 +341,91 @@ public final class BatchProcessTest {
     Files.copy(closed.path(), directory.resolve("PRIVATE_GLOB_match.tape"));
     Fixture glob = new Fixture(globPath, null, "IO_ERROR");
     verifyBatch(runIn(directory, Main.class, arguments(false, glob, closed)), false, glob, closed);
+  }
+
+  private void unicodeFilenames() throws Exception {
+    Files.copy(closed.path(), directory.resolve(UNICODE_FILENAME));
+    Fixture unicode = new Fixture(Path.of("./" + UNICODE_FILENAME), closed.tape(), null);
+    Fixture token = new Fixture(Path.of(UNICODE_PATH_TOKEN), closed.tape(), null);
+    Boolean exactTransport = null;
+    for (boolean requireV2 : List.of(false, true)) {
+      String[] arguments = arguments(requireV2, unicode, unicode, recordedError);
+      ProcessResult probe = runIn(directory, ArgumentProbeMain.class, arguments);
+      equal(0, probe.exitCode(), "Argument probe exit status");
+      equal("", probe.stderr(), "Argument probe has no diagnostics");
+      Map<String, Object> observed = Json.object(probe.stdout());
+      equal(Json.write(observed) + "\n", probe.stdout(), "Argument probe is canonical ASCII JSON");
+      equal(
+          Set.of("argumentCodePoints", "nativeEncoding", "fileEncoding"),
+          observed.keySet(),
+          "Argument probe has only transport diagnostics");
+      equal(
+          "UTF-8",
+          observed.get("fileEncoding"),
+          "File encoding does not determine native argv encoding");
+      boolean roundTrip =
+          Objects.equals(argumentCodePoints(arguments), observed.get("argumentCodePoints"));
+      if (exactTransport != null)
+        equal(exactTransport, roundTrip, "Gate flag does not change argument transport");
+      exactTransport = roundTrip;
+      ProcessResult result = runIn(directory, Main.class, arguments);
+      try {
+        if (roundTrip) {
+          verifyBatch(result, requireV2, unicode, unicode, recordedError);
+        } else {
+          // This is a measured launcher limitation, not a skipped or successful Unicode CLI case.
+          // OpenJDK 17/21 Windows main.c converts GetCommandLineW through the ANSI code page.
+          check(
+              System.getProperty("os.name").startsWith("Windows"),
+              "Unexpected native argv mutation outside Windows");
+          equal(
+              "Cp1252",
+              observed.get("nativeEncoding"),
+              "Only the observed Windows code-page limitation is accepted");
+          String[] replaced =
+              Arrays.stream(arguments)
+                  .map(value -> value.replace('\u96ea', '?'))
+                  .toArray(String[]::new);
+          equal(
+              argumentCodePoints(replaced),
+              observed.get("argumentCodePoints"),
+              "Native argv changes exactly U+96EA to '?' and preserves all other code points");
+          Fixture rejected = new Fixture(unicode.path(), null, "INVALID_ARGUMENTS");
+          verifyBatch(result, requireV2, rejected, rejected, recordedError);
+        }
+      } catch (AssertionError failure) {
+        throw new AssertionError(
+            "Unicode native argv, requireV2="
+                + requireV2
+                + "; CLI="
+                + result
+                + "; argv probe="
+                + probe,
+            failure);
+      }
+      // Separately inject the actual Java String inside the child. This proves path handling,
+      // including the real process exit, but makes no claim about native argv transport.
+      verifyBatch(
+          runIn(
+              directory, UnicodePathMain.class, arguments(requireV2, token, token, recordedError)),
+          requireV2,
+          unicode,
+          unicode,
+          recordedError);
+    }
+    filenameChecks.add(
+        Boolean.TRUE.equals(exactTransport)
+            ? "Unicode native argv round trip: exact, real CLI success"
+            : "LIMITATION: Windows Cp1252 native argv replaces U+96EA with '?'; real CLI reports"
+                + " INVALID_ARGUMENTS and continues");
+    filenameChecks.add(
+        "Unicode Java path: verified by in-child injection, not native argv transport");
+  }
+
+  private static Object argumentCodePoints(String... arguments) {
+    return Json.read(
+        Json.write(
+            Arrays.stream(arguments).map(value -> value.codePoints().boxed().toList()).toList()));
   }
 
   private void maximumBatch() throws Exception {
@@ -680,6 +770,15 @@ public final class BatchProcessTest {
                   "fileEncoding",
                   System.getProperty("file.encoding", ""))));
       System.out.print('\n');
+    }
+  }
+
+  /** Test Java Unicode path handling separately from the native launcher's argv transport. */
+  public static final class UnicodePathMain {
+    public static void main(String[] args) {
+      for (int i = 0; i < args.length; i++)
+        if (UNICODE_PATH_TOKEN.equals(args[i])) args[i] = "./" + UNICODE_FILENAME;
+      Main.main(args);
     }
   }
 
