@@ -9,7 +9,7 @@
 
 [![Regression CI](https://github.com/keweizhuazuki/tooltape/actions/workflows/ci.yml/badge.svg)](https://github.com/keweizhuazuki/tooltape/actions/workflows/ci.yml) [![Browser QA](https://github.com/keweizhuazuki/tooltape/actions/workflows/browser.yml/badge.svg)](https://github.com/keweizhuazuki/tooltape/actions/workflows/browser.yml)
 
-[Quick start](#quick-start) · [API](#use-it-in-your-code) · [Security](SECURITY.md) · [Format](docs/FORMAT.md) · [Roadmap](#next-upgrade)
+[Quick start](#quick-start) · [API](#use-it-in-your-code) · [JUnit fixtures](docs/JUNIT.md) · [Security](SECURITY.md) · [Format](docs/FORMAT.md) · [Roadmap](#next-upgrade)
 
 </div>
 
@@ -144,6 +144,8 @@ mvn test
 
 [RegressionJUnitTest](src/test/java/dev/tooltape/RegressionJUnitTest.java) contains a checked-in failure fixture, complete replay assertion and changed-argument failure. `mvn install` installs the library locally for another Maven project; coordinates are `dev.tooltape:tooltape:0.2.0` and are **not** remotely published.
 
+For reusable Jupiter tests, build the optional [ReplayFixture adapter](docs/JUNIT.md). `ReplayFixture.fromResource(...).assertReplay(...)` loads a reviewed v2 fixture for each execution; `.test("scenario", ...)` creates a named dynamic test. Policy validation and complete consumption are automatic. The core remains dependency-free; the adapter is locally built, with Jupiter supplied by your test project. JUnit diagnostics may contain captured values, unlike the payload-free CLI JSON reports.
+
 [Verified Spring AI / kewei-ai-agent integration →](docs/SPRING_AI.md)
 
 The optional application adapter is merged and tested through its real `think → act` dispatch with a fake model: 24 focused integration tests and packaging passed. It stays off by default, pins ToolTape source, preserves ToolContext in memory and fails clearly if output was not captured. It is not a separately published framework module.
@@ -166,11 +168,15 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Verification
 
-- Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/10/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- Optional Jupiter adapter: 20 tests passed locally under both 5.14.4 and 6.0.3, including actual JAR resources and real named dynamic-child outcomes. The [verified binary-consumer run](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449) passed 7 consumer tests in each Java 17/21 × Jupiter 5.14.4/6.0.3 combination, all against the same packaged adapter. Adapter compatibility is limited to these explicitly tested versions.
+
+- Local Linux/JDK 21: **45 dependency-free acceptance checks + 35 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/11/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
+
+- Optional immutable Jupiter replay fixtures with named dynamic tests, JAR-resource loading and caller-owned bounded stream parsing
 
 - Bounded, ordered fixture-inventory validation with an independent JSON envelope, safe per-input failures and aggregate CI status
 
@@ -205,7 +211,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Next upgrade
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
-2. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
+2. Extend replay-fixture workflow examples with multiple independently authored application scenarios before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
 3. Extend cross-engine checks with assistive-technology review and physical-device testing; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.

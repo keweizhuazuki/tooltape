@@ -10,6 +10,7 @@
 | [setup-java v6.0.1](https://github.com/actions/setup-java/releases/tag/v6.0.1) | `de7274f081f381c8f8158605e0321c36c376e2e6` |
 | [setup-node v7.1.0](https://github.com/actions/setup-node/releases/tag/v7.1.0) | `949feb2413d6458794dcd2491c4babbbce0c15c1` |
 | [upload-artifact v7.0.2](https://github.com/actions/upload-artifact/releases/tag/v7.0.2) | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
+| [download-artifact v7.0.0](https://github.com/actions/download-artifact/releases/tag/v7.0.0) | `37930b1c2abaa49bbe596cd826c3c89aef350131` |
 
 通过官方 `actions/*` 仓库 Git refs API 将版本标签解析为上述提交，并确认各版本 `action.yml` 使用 `node24`。锁定完整 SHA 可避免可移动标签静默改变执行代码，但仍需审阅后续更新。
 
@@ -30,3 +31,5 @@
 4. 合并前执行全部平台/JDK、Maven、界面和浏览器检查，合并后验证 main，并下载 JAR 核对校验和。
 
 这些是维护步骤，不代表已自动更新依赖，也不承诺自托管运行器或 GitHub Enterprise Server 兼容。
+
+可选 Jupiter 兼容性工作流新增固定版本 download-artifact，仅在同一次运行内传递经过校验和验证的构建输入，不读取其他仓库或运行的产物。该版本官方 action.yml 使用 Node 24，要求 runner 至少 2.327.1；消费任务没有 checkout，使用独立临时目录和 Maven 仓库。
