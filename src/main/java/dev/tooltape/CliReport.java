@@ -2,6 +2,7 @@ package dev.tooltape;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.List;
@@ -26,7 +27,7 @@ final class CliReport {
               .anyMatch(arg -> "--json".equals(arg) || "--require-v2".equals(arg))) {
         error(report, "INVALID_ARGUMENTS", "Invalid command arguments.");
       } else if (command.equals("validate")) {
-        validate(report, read(args[firstFile]), requireV2);
+        report = validationReport(args[firstFile], requireV2, false);
       } else {
         diff(report, read(args[firstFile]), read(args[firstFile + 1]), requireV2);
       }
@@ -40,6 +41,29 @@ final class CliReport {
     out.print(Json.write(report));
     out.print('\n');
     return (Integer) report.get("exitCode");
+  }
+
+  /** Construct the same v1 validation report for a single command or a batch result. */
+  static Map<String, Object> validationReport(
+      String filename, boolean requireV2, boolean regularFileOnly) {
+    Map<String, Object> report = base("validate");
+    try {
+      Path path = Path.of(filename);
+      // Batch-only precheck follows symbolic links and rejects obvious directories/devices/FIFOs.
+      // It is not an atomic open: paths can change afterward and filesystem I/O can still block.
+      if (regularFileOnly && !Files.isRegularFile(path)) {
+        error(report, "IO_ERROR", "Tape could not be read.");
+      } else {
+        validate(report, Tape.read(path), requireV2);
+      }
+    } catch (InvalidPathException e) {
+      error(report, "INVALID_ARGUMENTS", "Invalid command arguments.");
+    } catch (InvalidTapeException | IllegalArgumentException e) {
+      error(report, "INVALID_TAPE", "Tape is malformed or unsupported.");
+    } catch (IOException | SecurityException e) {
+      error(report, "IO_ERROR", "Tape could not be read.");
+    }
+    return report;
   }
 
   private static Tape read(String filename) throws IOException {

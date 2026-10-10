@@ -21,6 +21,7 @@ public final class Main {
 
   /** Run a command with caller-owned output streams. Neither stream is closed. */
   public static int run(String[] args, PrintStream out, PrintStream err) {
+    if (args.length > 0 && "validate-batch".equals(args[0])) return BatchReport.run(args, out);
     if (Arrays.asList(args).contains("--json")) return CliReport.run(args, out);
     if (Arrays.asList(args).contains("--require-v2")) return usage(err);
     try {
@@ -85,6 +86,7 @@ public final class Main {
             + "  inspect <file>\n"
             + "  validate <file>\n"
             + "  validate --json [--require-v2] <file>\n"
+            + "  validate-batch --json [--require-v2] <file>... (1..64 files)\n"
             + "  diff <expected> <actual>\n"
             + "  diff --json [--require-v2] <expected> <actual>\n"
             + "  --version\n"

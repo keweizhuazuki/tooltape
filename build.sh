@@ -10,5 +10,6 @@ find src/test/java -name '*.java' ! -name '*JUnitTest.java' | sort > target/test
 javac --release 17 -cp target/classes -d target/test-classes @target/test-sources.txt
 java -ea -cp target/classes:target/test-classes dev.tooltape.CoreTest
 java -ea -cp target/classes:target/test-classes dev.tooltape.CliProcessTest
+java -ea -cp target/classes:target/test-classes dev.tooltape.BatchProcessTest
 javac --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java
 printf 'Built target/tooltape.jar\n'
