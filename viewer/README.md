@@ -13,13 +13,13 @@ Open [`index.html`](index.html) directly in a modern browser. There is no server
 
 **Try an example** preserves a small, clearly labeled legacy v1 in-memory fixture, matching `fixtures/weather-retry.tape`, including one I/O exception and a successful retry. It performs no tool calls and requires no external file.
 
-Files are limited to 16 MiB and 50,000 calls. The timeline initially renders 250 matching cards, with a button to show additional calls. Very large payload panels display the first 100,000 characters with a visible notice; search and comparison still use complete values. An invalid replacement file leaves the previous valid run intact. Opening a new primary tape clears the old comparison.
+Files are limited to 16 MiB and 50,000 calls. The timeline renders at most 250 matching cards per page. **Previous page** and **Next page** replace the visible page; the footer reports its one-based range and total matching count. Jumping to a late divergence opens its page without rendering preceding pages. Paging keeps the inspector selection, even when that selected call is on another page. Very large payload panels display the first 100,000 characters with a visible notice; search and comparison still use complete values. An invalid replacement file leaves the previous valid run intact. Opening a new primary tape clears the old comparison.
 
 ## Keyboard controls
 
 - Tab reaches visible **Open tape** / **Compare tape** buttons, without stopping on the invisible file inputs. Enter or Space opens the normal browser file picker.
-- Activate **Show next** to reveal more calls; focus moves to the first newly revealed call while the selected inspection stays unchanged.
-- **Esc** clears active filters without losing a focused call or filter control. With no active filters, it does not rebuild the timeline or collapse a selected call beyond the first page.
+- Activate **Previous page** or **Next page** to change pages; focus moves to the first call on that page while the selected inspection stays unchanged. Boundary buttons are disabled; controls are hidden when no second page exists.
+- **Esc** clears active filters while keeping a focused call visible, or otherwise opening the selected call’s page. Filter controls retain focus. If a focused page button becomes unavailable, focus returns to a visible call. With no active filters, Esc leaves the current page, focus and selection unchanged.
 - Activating **Clear comparison** returns focus to **Compare tape** and announces that the comparison was cleared. The primary selection remains intact.
 
 These are targeted keyboard behaviors verified across the configured desktop/mobile-emulated browser projects. They are not a full accessibility audit or screen-reader compatibility certification.
@@ -104,6 +104,6 @@ For real offline Chromium/Firefox/WebKit interactions, responsive-layout asserti
 
 ## Implementation and next verification
 
-Completed: improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
+Completed: bounded 250-call pages, late-divergence navigation and truthful ranges; improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
 
 Next verification: keep screenshots synchronized with viewer changes; add physical-device testing, native Safari/iOS coverage and an assistive-technology audit.

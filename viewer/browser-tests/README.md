@@ -38,7 +38,7 @@ The committed lockfile pins the Playwright test runner and browser-install versi
 - HTML-like payload and filename rendering as inert text
 - Empty tapes and inspection of missing primary calls
 - Playwright file-drop input through the real drag/drop handlers, including multiple-file rejection
-- Deferred file-read races and timeline pagination
+- Deferred file-read races and bounded 250-call pages, including a 50,000-call last-divergence file-input scenario in every project
 - Keyboard focus after pagination/filter reset/comparison dismissal, visible Tab stops, and Enter/Space file-chooser activation
 - Computed small-text contrast for sampled labels, placeholders and timeline states, including transparency/opacity composition
 - v2 session closure, incomplete recording warnings, provenance, and capture-policy drift
@@ -64,8 +64,9 @@ The real screenshot tests write these files under `viewer/browser-tests/artifact
 - `viewer-diff.png`: that fixture compared with a synthetic regression changing only the successful temperature output from 22 to 23
 - `viewer-mobile.png`: unchanged fixture, 390px mobile emulation
 - `viewer-session.png`: unchanged `fixtures/weather-retry-v2.tape`, showing the closed session and self-reported provenance
+- `viewer-large-divergence.png`: Chromium desktop only; two deterministic synthetic 50,000-call v1 tapes differ at the last output, showing the final 250-call page. Both generated tapes and their hashes are included in the artifact.
 
-Each PNG has an attached JSON sidecar with screenshot/source/fixture SHA-256 hashes, commit/run IDs, actual engine and browser/test-runner versions, viewport, mobile/touch settings, observed DPR/user-agent, and input description. Captures come directly from the named engine without compositing or image replacement. Three desktop projects each capture baseline/session/diff; two mobile projects each capture the mobile baseline (11 PNG/JSON pairs).
+Each PNG has an attached JSON sidecar with screenshot/source/fixture SHA-256 hashes, commit/run IDs, actual engine and browser/test-runner versions, viewport, mobile/touch settings, observed DPR/user-agent, and input description. Captures come directly from the named engine without compositing or image replacement. Three desktop projects each capture baseline/session/diff; two mobile projects each capture the mobile baseline (11 PNG/JSON pairs), plus the Chromium large-recording capture (12 pairs total). The large-recording test has a finite 120-second functional-test budget and checks observed DOM replacements; it is not a latency benchmark.
 
 Use the named project when selecting README images; never copy whichever engine happens to finish last. Current hero images explicitly identify their source engine.
 
