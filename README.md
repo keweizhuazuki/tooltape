@@ -166,6 +166,8 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Completed in v0.2
 
+- CI action runtimes upgraded to reviewed official releases and full commit pins; checkout credentials are not persisted ([maintenance notes](docs/CI_MAINTENANCE.md))
+
 - Versioned, privacy-conscious JSON validate/diff reports with subprocess exit-code checks on all supported CI platforms
 
 - Hardening: normalized credential keys, bounded exponent expansion/node counts, preflight input budgets and owner-only new POSIX recordings
