@@ -538,6 +538,19 @@ function appendPayload(target, title, text, isError) {
 }
 function renderInspector() {
   const target = $('inspector');
+  // Read focus now, not when an async file read began. Only owned payloads are
+  // replaced; the inspector itself and any newer focus elsewhere survive.
+  const active = document.activeElement;
+  const focusedPayload = Array.from(target.querySelectorAll('pre[aria-label]')).find(pre => pre === active);
+  const label = focusedPayload && focusedPayload.getAttribute('aria-label');
+  renderInspectorContent(target);
+  if (!focusedPayload) return;
+  // Labels are controlled panel roles, never tape-derived text or selectors.
+  const replacement = Array.from(target.querySelectorAll('pre[aria-label]')).find(pre => pre.getAttribute('aria-label') === label) || target;
+  replacement.scrollIntoView({ block: 'nearest' });
+  replacement.focus({ preventScroll: true });
+}
+function renderInspectorContent(target) {
   target.replaceChildren();
   if (!state.tape) return;
   const call = state.tape.calls[state.selected];

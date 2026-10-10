@@ -815,6 +815,27 @@ test.describe('comparison-only inspection selection', () => {
       await expect(page.locator('#compare-note')).toContainText(name);
     }
 
+    async function expectPayloadKeyboardFocus(locator, timeout = 5000) {
+      await expect(locator).toBeFocused({ timeout });
+      await expect(locator).toBeVisible();
+      await expect(locator).toBeInViewport();
+      const focus = await locator.evaluate(element => {
+        const style = getComputedStyle(element);
+        return {
+          visible: element.matches(':focus-visible'),
+          outlineStyle: style.outlineStyle,
+          outlineWidth: parseFloat(style.outlineWidth),
+          outlineColor: style.outlineColor
+        };
+      });
+      // Payloads use each engine's native focus outline, which can be 1px.
+      // The stricter 2px button and inspector assertions remain unchanged.
+      expect(focus.visible, 'payload keyboard focus is visibly indicated').toBe(true);
+      expect(focus.outlineStyle, 'payload focus has a real outline').not.toBe('none');
+      expect(focus.outlineWidth, 'payload focus outline has positive width').toBeGreaterThan(0);
+      expect(focus.outlineColor, 'payload focus outline is not transparent').not.toMatch(/^(transparent|rgba\([^)]*,\s*0\))$/);
+    }
+
     async function expectRetainedKeyboardFocus(locator) {
       await expect(locator).toBeFocused({ timeout: 2000 });
       await expectVisibleKeyboardFocus(locator);
@@ -827,7 +848,7 @@ test.describe('comparison-only inspection selection', () => {
       await comparisonInput(page).setInputFiles(file(replacementName, tape(primaryRows)));
       await expect(page.locator('#compare-note')).toContainText('bookmark-extension.tape');
       await page.keyboard.press('Tab');
-      await expectVisibleKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
+      await expectPayloadKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
 
       await expectCompletedComparison(page, replacementName);
       await expect(page.locator('#compare-title')).toContainText('all 2 calls match');
@@ -836,7 +857,7 @@ test.describe('comparison-only inspection selection', () => {
       await expectRetainedKeyboardFocus(page.locator('#inspector'));
       // The fallback remains a useful keyboard starting point after restoration.
       await page.keyboard.press('Tab');
-      await expectVisibleKeyboardFocus(page.getByLabel('input', { exact: true }));
+      await expectPayloadKeyboardFocus(page.getByLabel('input', { exact: true }));
     });
 
     for (const label of ['input', 'output']) {
@@ -856,12 +877,12 @@ test.describe('comparison-only inspection selection', () => {
         await detailsFromFilters(page, 'Enter');
         await page.keyboard.press('Tab');
         if (label === 'output') await page.keyboard.press('Tab');
-        await expectVisibleKeyboardFocus(page.getByLabel(label, { exact: true }));
+        await expectPayloadKeyboardFocus(page.getByLabel(label, { exact: true }));
 
         await expectCompletedComparison(page, replacementName);
         await expect(page.locator('#compare-title')).toContainText('all 2 calls match');
         await expectSavedPrimary(page);
-        await expectRetainedKeyboardFocus(page.getByLabel(label, { exact: true }));
+        await expectPayloadKeyboardFocus(page.getByLabel(label, { exact: true }), 2000);
       });
     }
 
@@ -870,7 +891,7 @@ test.describe('comparison-only inspection selection', () => {
       await deferFileReads(page, [replacementName]);
       await inspectExtraCall(page);
       await page.keyboard.press('Tab');
-      await expectVisibleKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
+      await expectPayloadKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
       await comparisonInput(page).setInputFiles(file(replacementName, tape(primaryRows)));
       await expect(page.locator('#compare-note')).toContainText('bookmark-extension.tape');
       await page.getByRole('searchbox').focus();
@@ -891,7 +912,7 @@ test.describe('comparison-only inspection selection', () => {
       await deferFileReads(page, [staleName]);
       await inspectExtraCall(page);
       await page.keyboard.press('Tab');
-      await expectVisibleKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
+      await expectPayloadKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
       await comparisonInput(page).setInputFiles(file(staleName, tape(primaryRows)));
       await expect(page.locator('#compare-note')).toContainText('bookmark-extension.tape');
       const newerName = 'focus-newer-extension.tape';
@@ -904,7 +925,7 @@ test.describe('comparison-only inspection selection', () => {
       await page.keyboard.press('Tab');
       await page.keyboard.press('Tab');
       const currentPayload = page.getByLabel('comparison output', { exact: true });
-      await expectVisibleKeyboardFocus(currentPayload);
+      await expectPayloadKeyboardFocus(currentPayload);
       const focusedNode = await currentPayload.elementHandle();
 
       // An obsolete result must finish before checking the unchanged visible
@@ -916,7 +937,7 @@ test.describe('comparison-only inspection selection', () => {
       await expect(currentPayload).toContainText('newer extra');
       await expect(pressedCalls(page)).toHaveCount(0);
       expect(await focusedNode.evaluate(element => element.isConnected), 'a stale read does not remount the inspector').toBe(true);
-      await expectRetainedKeyboardFocus(currentPayload);
+      await expectPayloadKeyboardFocus(currentPayload, 2000);
     });
   });
 

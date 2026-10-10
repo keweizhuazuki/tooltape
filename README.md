@@ -207,11 +207,13 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 41 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/12/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 303 parser/canonicalization/search checks and 1,534 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38072059732) passed 343 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- Viewer: 303 parser/canonicalization/search checks and 1,983 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38072059732) passed 343 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
 
 - Unicode/emoji payload search alongside canonical text, with single-decoded literal-escape semantics and unchanged exact-value comparisons
+
+- Async inspector updates retain a focused payload by its panel role, fall back to the inspector when that panel disappears, and leave newer focus outside the pane untouched
 
 - Remember the last primary call while inspecting comparison-only calls; restore it when clearing or replacing that comparison removes the inspected call
 
