@@ -12,6 +12,16 @@ public final class Replay implements Tool, AutoCloseable {
   public Replay(Tape tape, CapturePolicy policy) {
     this.tape = Objects.requireNonNull(tape);
     this.policy = Objects.requireNonNull(policy);
+    if (tape.version() == 2) {
+      if (!tape.complete())
+        throw new IllegalArgumentException("Incomplete v2 tape: no verified END marker");
+      if (!tape.metadata().policyId().equals(policy.identifier()))
+        throw new IllegalArgumentException(
+            "Capture policy mismatch: expected "
+                + tape.metadata().policyId()
+                + ", actual "
+                + policy.identifier());
+    }
   }
 
   public static final class Divergence extends AssertionError {
@@ -46,7 +56,13 @@ public final class Replay implements Tool, AutoCloseable {
     if (!expected.tool().equals(name))
       throw mismatch("tool: expected " + expected.tool() + ", actual " + name);
     if (!expected.input().equals(actual))
-      throw mismatch("arguments\nexpected: " + expected.input() + "\nactual:   " + actual);
+      throw mismatch(
+          "arguments at "
+              + Json.firstDifference(Json.read(expected.input()), Json.read(actual)).orElse("")
+              + "\nexpected: "
+              + expected.input()
+              + "\nactual:   "
+              + actual);
     position++;
     if (expected.status().equals("ERROR")) throw new RecordedToolException(expected.result());
     return Json.object(expected.result());

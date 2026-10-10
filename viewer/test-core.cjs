@@ -26,7 +26,7 @@ check(()=>assert.equal(parseTape(wrap(row('weather.lookup','{"query":"coffee ☕
 check(()=>assert.throws(()=>parseTape(wrap(row('weather.lookup','""')),'nonobject'),/JSON object/));
 check(()=>assert.throws(()=>parseTape(wrap(row('weather.lookup','{}','OK','[]')),'nonobject'),/JSON object/));
 check(()=>assert.throws(()=>parseTape(wrap(row('weather.lookup','{}','ERROR','')),'empty error'),/exception class/));
-check(()=>assert.throws(()=>parseTape('TOOLTAPE\t2\n','bad'),/header/));
+check(()=>assert.throws(()=>parseTape('TOOLTAPE\t3\n','bad'),/header/));
 check(()=>assert.throws(()=>parseTape(wrap('0\t1'),'bad'),/6 tab-separated/));
 check(()=>assert.throws(()=>parseTape(wrap(row('weather.lookup','{}','NO','{}')),'bad'),/status/));
 check(()=>assert.throws(()=>parseTape(wrap(row('weather.lookup','{}','OK','{}','-1')),'bad'),/nonnegative/));
@@ -61,4 +61,66 @@ for (const invalid of ['+0', '00', '01', ' 0', '0 ']) {
   check(() => assert.throws(() => parseTape(wrap(row('weather.lookup', '{}', 'OK', '{}', invalid)), 'invalid index'), /nonnegative/));
   check(() => assert.throws(() => parseTape(wrap(row('weather.lookup', '{}', 'OK', '{}', '0', invalid)), 'invalid duration'), /nonnegative/));
 }
-console.log('PASS: '+checks+' parser, comparison, precision, formatting, fixture-parity, and static privacy checks.');
+// Versioned metadata and recording-session closure are separate from event equality.
+const policyId = 'sha256:' + '0123456789abcdef'.repeat(4);
+const metadata = JSON.stringify({policyId, source: 'example.weather:v2'});
+const v2 = (body = '', meta = metadata, count = body ? String(body.split('\n').length) : '0') =>
+  'TOOLTAPE\t2\nMETA\t' + encode(meta) + '\n' + (body ? body + '\n' : '') + (count === null ? '' : 'END\t' + count + '\n');
+const exampleRows = example.split('\n').slice(1, -1).join('\n');
+const closed = parseTape(v2(exampleRows), 'closed');
+check(() => assert.equal(tape.schemaVersion, 1));
+check(() => assert.equal(tape.completeness, 'legacy'));
+check(() => assert.equal(tape.metadata, null));
+check(() => assert.equal(closed.schemaVersion, 2));
+check(() => assert.equal(closed.completeness, 'closed'));
+check(() => assert.equal(closed.metadata.policyId, policyId));
+check(() => assert.equal(closed.metadata.source, 'example.weather:v2'));
+check(() => assert.equal(closed.totalNanos, tape.totalNanos));
+check(() => assert.equal(closed.errors, tape.errors));
+check(() => assert.equal(firstDivergence(tape, closed), null));
+const incomplete = parseTape(v2(exampleRows, metadata, null), 'incomplete');
+check(() => assert.equal(incomplete.completeness, 'incomplete'));
+check(() => assert.equal(firstDivergence(incomplete, closed), null));
+check(() => assert.equal(parseTape(v2(), 'empty closed').completeness, 'closed'));
+check(() => assert.equal(parseTape(v2('', metadata, null), 'empty incomplete').completeness, 'incomplete'));
+check(() => assert.equal(parseTape(v2(), 'empty closed').calls.length, 0));
+check(() => assert.equal(firstDivergence(closed, parseTape(v2(exampleRows, metadata.replace('example.weather:v2', 'different.source')), 'other source')), null));
+check(() => assert.equal(firstDivergence(closed, parseTape(v2(exampleRows, metadata.replace(policyId, 'sha256:' + 'f'.repeat(64))), 'other policy')), null));
+for (const header of ['TOOLTAPE\t0', 'TOOLTAPE\t02', 'TOOLTAPE\t2 ', 'TOOLTAPE\t2\textra']) {
+  check(() => assert.throws(() => parseTape(header + '\n', 'unknown schema'), /header/));
+}
+for (const invalid of ['TOOLTAPE\t2\n', 'TOOLTAPE\t2\n' + row() + '\n', 'TOOLTAPE\t2\nEND\t0\n', 'TOOLTAPE\t2\nMETA\n', 'TOOLTAPE\t2\nMETA\te30\textra\n']) {
+  check(() => assert.throws(() => parseTape(invalid, 'missing metadata'), /Line 2:.*META/));
+}
+for (const meta of ['{}', '{"source":"static"}', JSON.stringify({policyId}), JSON.stringify({policyId, source: 'static', unknown: true}), JSON.stringify({policyId, source: 'static', constructor: 'unknown'}), '{"__proto__":{},"policyId":"' + policyId + '","source":"static"}']) {
+  check(() => assert.throws(() => parseTape(v2('', canon(meta)), 'metadata fields'), /exactly policyId and source/));
+}
+for (const value of ['', 'sha256:' + 'a'.repeat(63), 'sha256:' + 'a'.repeat(65), 'sha256:' + 'A'.repeat(64), 'sha256:' + 'g'.repeat(64), 'SHA256:' + 'a'.repeat(64), null, 1, {}]) {
+  check(() => assert.throws(() => parseTape(v2('', JSON.stringify({policyId: value, source: 'static'})), 'invalid policy'), /policyId must be/));
+}
+for (const source of ['', 'a'.repeat(129), '<img src=x onerror=alert(1)>', 'two words', 'source/with/path', '工具', null, 1, {}]) {
+  check(() => assert.throws(() => parseTape(v2('', JSON.stringify({policyId, source})), 'invalid source'), /source must be/));
+}
+check(() => assert.equal(parseTape(v2('', JSON.stringify({policyId, source: 'a'.repeat(128)})), 'max source').metadata.source.length, 128));
+for (const meta of [metadata + ' ', metadata.replace(',', ', '), JSON.stringify({source: 'static', policyId}), metadata.replace('source', '\\u0073ource')]) {
+  check(() => assert.throws(() => parseTape(v2('', meta), 'noncanonical metadata'), /canonical JSON/));
+}
+for (const meta of ['[]', 'null', '"metadata"']) check(() => assert.throws(() => parseTape(v2('', meta), 'nonobject metadata'), /JSON object/));
+check(() => assert.throws(() => parseTape(v2('', '{"policyId":"' + policyId + '","source":"a","source":"b"}'), 'duplicate metadata'), /duplicate/));
+for (const encoded of ['e30=', 'Zh', '_w']) check(() => assert.throws(() => parseTape('TOOLTAPE\t2\nMETA\t' + encoded + '\n', 'metadata encoding'), /base64url|UTF-8/));
+check(() => assert.throws(() => parseTape(v2(row(), metadata, '0'), 'footer mismatch'), /END event count/));
+check(() => assert.throws(() => parseTape(v2('', metadata, '1'), 'empty mismatch'), /END event count/));
+for (const count of ['-1', '+0', '00', '01', ' 0', '0 ', '1.0', '', '0\textra']) check(() => assert.throws(() => parseTape(v2('', metadata, count), 'invalid footer count'), /canonical nonnegative decimal/));
+for (const trailing of ['END\t0\n', row() + '\n', '\n', 'META\t' + encode(metadata) + '\n']) check(() => assert.throws(() => parseTape(v2() + trailing, 'rows after footer'), /END footer must be the final line/));
+check(() => assert.throws(() => parseTape(v2(row()).slice(0, -1), 'footer without LF'), /final LF/));
+check(() => assert.throws(() => parseTape(v2(row()).replaceAll('\n', '\r\n'), 'v2 CRLF'), /LF line endings/));
+check(() => assert.throws(() => parseTape(v2('META\t' + encode(metadata)), 'second metadata'), /6 tab-separated/));
+check(() => assert.throws(() => parseTape(wrap('END\t0'), 'v1 footer'), /6 tab-separated/));
+check(() => assert.throws(() => parseTape(v2(row('weather.lookup', '{}', 'OK', '{}', '1')), 'v2 discontinuity'), /Line 3:.*contiguous/));
+check(() => assert.throws(() => parseTape(v2(row('weather.lookup', '{}', 'OK', '{}', '0', '01')), 'v2 duration'), /nonnegative/));
+check(() => assert.throws(() => parseTape(v2(row('weather.lookup', '{}', 'ERROR', 'arbitrary error text')), 'v2 error'), /exception class/));
+const maximumRows = Array.from({length: 50000}, (_, index) => row('tool', '{}', 'OK', '{}', String(index))).join('\n');
+check(() => assert.equal(parseTape(v2(maximumRows), 'limit').calls.length, 50000));
+check(() => assert.throws(() => parseTape(v2(maximumRows + '\n' + row('tool', '{}', 'OK', '{}', '50000')), 'over limit'), /50,000-call/));
+check(() => assert.throws(() => parseTape(wrap(maximumRows + '\n' + row('tool', '{}', 'OK', '{}', '50000')), 'v1 over limit'), /50,000-call/));
+console.log('PASS: '+checks+' v1/v2 parser, closure/metadata, comparison, precision, formatting, fixture-parity, limits, and static privacy checks.');

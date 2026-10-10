@@ -23,7 +23,7 @@ public class RetryRegression {
             throw new java.io.IOException("Sensitive original error is never persisted");
           return Map.of("temperature", 22, "token", "NEVER-PERSISTED");
         };
-    try (Recorder record = new Recorder(tape, live, POLICY)) {
+    try (Recorder record = new Recorder(tape, live, POLICY, "retry-regression")) {
       forecast(record, "Hangzhou");
     }
     try (Replay replay = new Replay(Tape.read(tape), POLICY)) {

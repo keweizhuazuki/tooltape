@@ -9,6 +9,8 @@
   <style>
     :root{--bg:#0b0e11;--panel:#12171b;--panel2:#181e23;--line:#2a3238;--ink:#ecf1ee;--muted:#95a29e;--faint:#65716e;--lime:#c4ef91;--lime-dim:#243223;--red:#ff9b94;--red-dim:#35211f;--mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;--sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.4}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--lime);outline-offset:4px}button{color:inherit}.shell{max-width:1400px;margin:auto;padding:0 48px}.topbar{height:87px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.brand{display:flex;gap:12px;align-items:center;font-size:22px;font-weight:700;letter-spacing:-.9px}.logo{width:32px;height:26px;border:2px solid var(--lime);border-radius:8px;position:relative;display:flex;justify-content:space-around;align-items:center}.logo:before,.logo:after{content:"";width:6px;height:6px;border:2px solid var(--lime);border-radius:50%}.version{font:11px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:4px 6px;letter-spacing:0}.local{display:flex;align-items:center;gap:9px;font:10px var(--mono);letter-spacing:1.7px;color:var(--muted)}.dot{width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px #c4ef9130}.hero{padding:43px 0 33px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px}.eyebrow{font:10px/1.4 var(--mono);color:var(--lime);letter-spacing:2px;text-transform:uppercase}h1{font-size:43px;line-height:1.14;font-weight:550;letter-spacing:-1.7px;margin:10px 0 12px}h1 span{color:var(--muted)}.intro{color:var(--muted);max-width:600px;margin:0;font-size:14px}.hero-actions{display:flex;gap:10px;flex-shrink:0;padding-bottom:3px}.btn{border:1px solid var(--line);background:var(--panel2);padding:11px 17px;border-radius:7px;font-size:12px;font-weight:600;white-space:nowrap}.btn:hover{background:#232b30;border-color:#46514f}.btn-primary{background:var(--lime);color:#172011;border-color:var(--lime)}.btn-primary:hover{background:#d3f5ac;border-color:#d3f5ac}.btn-text{background:transparent;border:0;color:var(--muted);font-size:12px;padding:6px 0}.btn-text:hover{color:var(--ink)}.btn-small{padding:7px 10px;font-size:11px}.plus{font-size:16px;margin-right:8px;font-weight:400}.file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.notice{background:var(--red-dim);border:1px solid #663b36;border-radius:8px;padding:12px 16px;color:#ffd1cc;margin-bottom:18px;white-space:pre-wrap;overflow-wrap:anywhere}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);margin-bottom:24px}.stat{padding:20px 24px;border-right:1px solid var(--line)}.stat:last-child{border-right:0}.stat-label{color:var(--muted);font-size:11px;margin-bottom:9px;display:flex;align-items:center;gap:7px}.stat-number{font:28px/1.2 var(--mono);letter-spacing:-1px}.stat-unit{font-size:13px;color:var(--faint);letter-spacing:0;margin-left:6px}.stat-note{font-size:10px;color:var(--faint);margin-top:7px}.stat-error .stat-number.has-errors{color:var(--red)}.comparison{border:1px solid #536747;background:#182117;border-radius:9px;padding:15px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:18px}.comparison.different{border-color:#6f4933;background:#241d17}.compare-title{font-size:12px;font-weight:600;margin-bottom:4px}.compare-note{font:11px/1.6 var(--mono);color:var(--muted);overflow-wrap:anywhere}.compare-actions{display:flex;gap:14px;align-items:center;flex-shrink:0}.workspace{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}.workspace-head{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:1px solid var(--line);padding:17px 21px}.section-title{font-size:13px;font-weight:650;display:flex;align-items:center;gap:10px}.count{background:#242c2d;border:1px solid #34403b;border-radius:4px;padding:1px 6px;font:10px var(--mono);color:var(--muted)}.filename{font:11px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}.workbody{display:grid;grid-template-columns:43% 57%;min-height:506px}.timeline-pane{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}.filters{padding:16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}.searchbox{position:relative;flex:1;min-width:0}.searchbox:before{content:"";position:absolute;left:13px;top:11px;border:1.5px solid var(--faint);border-radius:50%;width:9px;height:9px}.searchbox:after{content:"";position:absolute;left:23px;top:22px;height:5px;width:1.5px;background:var(--faint);transform:rotate(-45deg);transform-origin:top}.search{width:100%;background:#0f1417;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:9px 10px 9px 33px;font-size:11px;outline:none}.search::placeholder{color:var(--faint)}.error-toggle{font-size:11px;display:flex;align-items:center;gap:7px;color:var(--muted);white-space:nowrap;cursor:pointer}.error-toggle input{accent-color:var(--lime);margin:0}.timeline{padding:12px 12px 12px 16px;margin:0;list-style:none;max-height:455px;overflow:auto;scrollbar-color:#35423e transparent;flex:1}.event{position:relative;width:100%;text-align:left;border:1px solid transparent;background:transparent;border-radius:7px;display:grid;grid-template-columns:27px minmax(0,1fr) auto;gap:11px;padding:13px 11px;margin:0 0 5px}.event:hover{background:#1a2125}.event.selected{border-color:#43513c;background:#1d271e}.event-index{font:11px var(--mono);color:var(--faint);padding-top:3px}.event.selected .event-index{color:var(--lime)}.event-name{font:12px/1.5 var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.event-summary{font:10px/1.5 var(--mono);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:5px}.event-right{text-align:right;padding-top:1px}.status{font:9px/1.5 var(--mono);letter-spacing:.5px;border:1px solid #354b37;background:#1c2a21;color:#acd5a8;border-radius:4px;padding:2px 5px;white-space:nowrap}.status.error{color:var(--red);background:var(--red-dim);border-color:#5c3935}.duration{font:10px var(--mono);color:var(--muted);margin-top:10px}.event-track{height:2px;background:#2c3732;width:46px;margin-top:7px;margin-left:auto;border-radius:2px}.event-bar{height:2px;background:#5f7753;min-width:2px}.event.error-row .event-bar{background:#ae6d63}.no-results{padding:45px 20px;text-align:center;color:var(--muted);font-size:12px}.more{display:block;margin:10px auto}.timeline-foot{border-top:1px solid var(--line);padding:11px 20px;color:var(--faint);font:10px var(--mono);display:flex;justify-content:space-between;gap:10px}.inspector{padding:24px 26px;min-width:0}.inspect-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.inspect-label{font:9px var(--mono);letter-spacing:1.5px;color:var(--faint)}.inspect-name{font:18px/1.5 var(--mono);margin:10px 0 6px;overflow-wrap:anywhere}.inspect-meta{display:flex;gap:15px;font:10px var(--mono);color:var(--muted);padding-bottom:20px;border-bottom:1px solid var(--line)}.payload-heading{display:flex;align-items:center;justify-content:space-between;margin:19px 0 8px}.payload-heading h3{font:10px var(--mono);letter-spacing:1px;color:var(--muted);margin:0}.payload-kind{font:9px var(--mono);color:var(--faint)}.code{background:#0c1114;border:1px solid #232e31;border-radius:7px;padding:15px 16px;margin:0;font:11px/1.8 var(--mono);color:#c1d0c6;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;tab-size:2;scrollbar-color:#35423e transparent}.code.error-code{color:#ffb6ad;border-color:#49302c;background:#191514}.inspector-empty{display:flex;min-height:390px;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:12px}.empty{padding:48px 24px 42px;text-align:center;grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:430px}.empty-art{width:91px;height:70px;border:1px solid #4c5e42;background:linear-gradient(140deg,#223021,#141c18);border-radius:15px;display:flex;align-items:center;justify-content:center;gap:15px;margin-bottom:23px;box-shadow:0 18px 60px #a8d1730b;position:relative}.reel{width:22px;height:22px;border:5px double #8ca87a;border-radius:50%}.empty-art:after{content:"";position:absolute;bottom:9px;width:40px;border-bottom:2px solid #718865}.empty h2{font-size:19px;letter-spacing:-.4px;font-weight:500;margin:0 0 9px}.empty p{font-size:12px;color:var(--muted);margin:0 0 24px;max-width:360px}.empty-actions{display:flex;align-items:center;gap:19px}.empty-hint{font:10px var(--mono);color:var(--faint);margin-top:22px}.drop-active .workspace{outline:2px dashed var(--lime);outline-offset:5px}.footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:21px 0 30px;color:var(--faint);font:10px/1.6 var(--mono)}.footer strong{font-weight:400;color:var(--muted)}.key{border:1px solid var(--line);padding:1px 5px;border-radius:3px;margin:0 4px}details{color:var(--muted);font-size:11px;margin-bottom:25px}summary{cursor:pointer;color:var(--faint)}details p{max-width:870px;line-height:1.8}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}[hidden]{display:none!important}
+    .recording{display:grid;grid-template-columns:.65fr 1fr 1.2fr 1.1fr;gap:12px 24px;border:1px solid var(--line);border-radius:8px;background:#0f1417;padding:14px 18px;margin-bottom:18px}.recording-label{font-size:10px;color:var(--faint);margin-bottom:4px}.recording-value{font:11px/1.6 var(--mono);color:var(--muted);overflow-wrap:anywhere}.recording-note{grid-column:1/-1;font-size:11px;line-height:1.6;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}.recording.incomplete{border-color:#663b36}.recording.incomplete #recording-completeness,.recording.incomplete .recording-note{color:var(--red)}.compare-context{margin-top:5px}.policy-warning{font-size:11px;line-height:1.6;color:var(--red);margin-top:7px}.recording-provenance{color:var(--faint);font-size:10px}
+    @media(max-width:650px){.recording{grid-template-columns:1fr 1fr;gap:12px 18px;padding:13px 16px}}
     @media(min-width:1500px){.shell{padding:0 60px}.hero{padding-top:55px}}
     @media(max-width:950px){.shell{padding:0 24px}.hero{align-items:flex-start;flex-direction:column;padding-top:30px}.hero-actions{padding:0}h1{font-size:38px}.workbody{grid-template-columns:45% 55%}.inspector{padding:21px 18px}.stat{padding:17px}.stat-number{font-size:23px}.filename{max-width:240px}.filters{flex-wrap:wrap}.searchbox{min-width:140px}.local{font-size:9px;letter-spacing:1px}}
     @media(max-width:650px){.shell{padding:0 16px}.topbar{height:70px}.brand{font-size:21px}.version{display:none}.local{font-size:8px}.hero{padding:28px 0 24px;gap:21px}h1{font-size:34px}.intro{font-size:12px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:18px}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}.stat{padding:15px 18px}.stat-number{font-size:24px}.stat-note{font-size:9px}.workbody{grid-template-columns:1fr}.timeline-pane{border-right:0;border-bottom:1px solid var(--line)}.timeline{max-height:330px}.inspector{padding:22px 19px}.workspace-head{padding:14px 16px;align-items:flex-start;flex-direction:column;gap:7px}.filename{max-width:100%}.comparison{align-items:flex-start;flex-direction:column;padding:14px}.compare-actions{width:100%;justify-content:space-between}.footer{font-size:9px;align-items:flex-start;flex-direction:column;gap:8px;padding:18px 0}.empty{padding:38px 18px;min-height:390px}.empty-actions{gap:15px}.hero-actions{width:100%}.hero-actions .btn{flex:1;padding:11px 12px}.code{font-size:10px}}
@@ -18,7 +20,7 @@
 <body>
 <div class="shell" id="app">
   <header class="topbar">
-    <div class="brand"><span class="logo" aria-hidden="true"></span>tooltape<span class="version">VIEWER / 01</span></div>
+    <div class="brand"><span class="logo" aria-hidden="true"></span>tooltape<span class="version">VIEWER / 02</span></div>
     <div class="local"><span class="dot" aria-hidden="true"></span>OFFLINE BY DESIGN</div>
   </header>
   <main>
@@ -30,13 +32,20 @@
     <input class="file-input" type="file" id="compare-file" accept=".tape,text/plain" aria-label="Open comparison tape">
     <div class="notice" id="notice" role="alert" hidden></div>
     <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
+    <section class="recording" id="recording" aria-label="Recording details" hidden>
+      <div><div class="recording-label">Schema</div><div class="recording-value" id="recording-schema"></div></div>
+      <div><div class="recording-label">Recording completeness</div><div class="recording-value" id="recording-completeness"></div></div>
+      <div><div class="recording-label">Provenance source</div><div class="recording-value" id="recording-source"></div></div>
+      <div><div class="recording-label">Capture policy</div><div class="recording-value" id="recording-policy"></div></div>
+      <div class="recording-note"><span id="recording-note"></span><br><span class="recording-provenance">Source and policy are self-reported metadata, not proof of authenticity.</span></div>
+    </section>
     <section class="stats" aria-label="Run summary">
-      <div class="stat"><div class="stat-label">Tool calls</div><div class="stat-number" id="stat-calls">—</div><div class="stat-note">The complete execution sequence</div></div>
+      <div class="stat"><div class="stat-label">Tool calls</div><div class="stat-number" id="stat-calls">—</div><div class="stat-note">The captured execution sequence</div></div>
       <div class="stat"><div class="stat-label">Recorded tool time</div><div class="stat-number"><span id="stat-time">—</span><span class="stat-unit" id="stat-time-unit"></span></div><div class="stat-note">Sum of recorded call durations</div></div>
       <div class="stat"><div class="stat-label">Successful calls</div><div class="stat-number"><span id="stat-success">—</span><span class="stat-unit" id="stat-success-unit"></span></div><div class="stat-note" id="stat-success-note">Recorded without an exception</div></div>
       <div class="stat stat-error"><div class="stat-label">Errors</div><div class="stat-number" id="stat-errors">—</div><div class="stat-note">Exceptions preserved in the tape</div></div>
     </section>
-    <section class="comparison" id="comparison" aria-label="Tape comparison" hidden><div><div class="compare-title" id="compare-title"></div><div class="compare-note" id="compare-note"></div></div><div class="compare-actions"><button class="btn btn-small" id="jump-divergence">Inspect divergence</button><button class="btn-text" id="clear-compare">Clear comparison</button></div></section>
+    <section class="comparison" id="comparison" aria-label="Tape comparison" hidden><div><div class="compare-title" id="compare-title"></div><div class="compare-note" id="compare-note"></div><div class="compare-note compare-context" id="compare-context"></div><div class="policy-warning" id="compare-policy-warning" role="status" hidden></div></div><div class="compare-actions"><button class="btn btn-small" id="jump-divergence">Inspect divergence</button><button class="btn-text" id="clear-compare">Clear comparison</button></div></section>
     <section class="workspace" aria-label="Tape explorer">
       <div class="workspace-head"><div class="section-title">Execution timeline <span class="count" id="timeline-count">0 CALLS</span></div><div class="filename" id="filename">Waiting for a .tape file</div></div>
       <div class="workbody">
@@ -45,8 +54,8 @@
         <section class="inspector" id="inspector" aria-label="Selected call" hidden></section>
       </div>
     </section>
-    <footer class="footer"><span><strong>Local files. Local inspection.</strong> Your tape never leaves this tab.</span><span>TOOLTAPE v1 <span aria-hidden="true">/</span> <span class="key">Esc</span> clears filters</span></footer>
-    <details><summary>About this viewer &amp; comparison</summary><p>This single HTML file works directly from disk with no dependencies, uploads, storage, or network requests. Open a ToolTape v1 file, filter calls by tool name or payload, and select any call to inspect its input and recorded result. Comparison checks call index, tool name, canonical input, status, and canonical output or error class, in order. Durations are displayed but do not count as divergence. A shorter or longer tape diverges at the first missing call. Files are limited to 16 MiB and 50,000 calls to keep local inspection responsive. JSON numbers are normalized without losing precision. Equality covers only captured fields; redacted or omitted fields cannot be compared. A valid tape does not prove the original workflow completed. Close or reload this tab to discard its data.</p></details>
+    <footer class="footer"><span><strong>Local files. Local inspection.</strong> Your tape never leaves this tab.</span><span>TOOLTAPE v1 + v2 <span aria-hidden="true">/</span> <span class="key">Esc</span> clears filters</span></footer>
+    <details><summary>About this viewer &amp; comparison</summary><p>This single HTML file works directly from disk with no dependencies, uploads, storage, or network requests. Open a ToolTape v1 or v2 file, filter calls by tool name or payload, and select any call to inspect its input and recorded result. Comparison checks call index, tool name, canonical input, status, and canonical output or error class, in order. Durations are displayed but do not count as divergence. A shorter or longer tape diverges at the first missing call. Files are limited to 16 MiB and 50,000 calls to keep local inspection responsive. JSON numbers are normalized without losing precision. Equality covers only captured fields; redacted or omitted fields cannot be compared. The v2 END footer confirms the recording session closed, not business success. A v2 recording without END is incomplete and cannot be used for safe replay. Legacy v1 completeness is unknown. Source and policy metadata are self-reported, and differing capture policies are flagged separately from event differences. Close or reload this tab to discard its data.</p></details>
   </main>
 </div>
 <script>
@@ -172,23 +181,43 @@ function canonicalJson(source, line, column) {
   if (offset !== source.length) fail('contains trailing JSON data');
   return result;
 }
+function parseMetadata(line) {
+  if (!line || !line.startsWith('META\t') || line.split('\t').length !== 2) throw new Error('Line 2: v2 requires a META line with one base64url metadata field.');
+  const decoded = decodeField(line.slice(5), 2, 'metadata');
+  const canonical = canonicalJson(decoded, 2, 'metadata');
+  if (decoded !== canonical) throw new Error('Line 2: META metadata must be canonical JSON.');
+  const metadata = JSON.parse(canonical);
+  if (Object.keys(metadata).sort().join(',') !== 'policyId,source') throw new Error('Line 2: META metadata must contain exactly policyId and source.');
+  if (typeof metadata.policyId !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(metadata.policyId)) throw new Error('Line 2: metadata policyId must be sha256: followed by 64 lowercase hexadecimal characters.');
+  if (typeof metadata.source !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(metadata.source)) throw new Error('Line 2: metadata source must be a static identifier of 1–128 characters.');
+  return metadata;
+}
 function parseTape(text, name) {
   if (!text.endsWith('\n')) throw new Error('Truncated tape: a final LF newline is required.');
-  if (text.includes('\r')) throw new Error('ToolTape v1 requires LF line endings; CRLF is not supported.');
+  if (text.includes('\r')) throw new Error('ToolTape requires LF line endings; CRLF is not supported.');
   const lines = text.split('\n');
   lines.pop();
-  if (lines[0] !== 'TOOLTAPE\t1') throw new Error('Not a ToolTape v1 file. Expected the header TOOLTAPE followed by a tab and 1.');
-  if (lines.length - 1 > MAX_CALLS) throw new Error('This tape exceeds the 50,000-call viewer limit.');
+  if (lines[0] !== 'TOOLTAPE\t1' && lines[0] !== 'TOOLTAPE\t2') throw new Error('Not a supported ToolTape file. Expected the header TOOLTAPE followed by a tab and 1 or 2.');
+  const schemaVersion = Number(lines[0].slice(-1));
+  const metadata = schemaVersion === 2 ? parseMetadata(lines[1]) : null;
+  let completeness = schemaVersion === 2 ? 'incomplete' : 'legacy';
   const calls = [];
   let totalNanos = 0n;
   let errors = 0;
-  for (let n = 1; n < lines.length; n++) {
-    const line = lines[n];
-    const parts = line.split('\t');
+  for (let n = schemaVersion === 2 ? 2 : 1; n < lines.length; n++) {
+    const parts = lines[n].split('\t');
+    if (schemaVersion === 2 && parts[0] === 'END') {
+      if (parts.length !== 2 || !/^(0|[1-9][0-9]*)$/.test(parts[1])) throw new Error('Line ' + (n + 1) + ': END footer requires a canonical nonnegative decimal event count.');
+      if (n !== lines.length - 1) throw new Error('Line ' + (n + 1) + ': END footer must be the final line and appear only once.');
+      if (parts[1] !== String(calls.length)) throw new Error('Line ' + (n + 1) + ': END event count does not match the ' + calls.length + ' recorded calls.');
+      completeness = 'closed';
+      continue;
+    }
+    if (calls.length >= MAX_CALLS) throw new Error('This tape exceeds the 50,000-call viewer limit.');
     if (parts.length !== 6) throw new Error('Line ' + (n + 1) + ': expected 6 tab-separated columns; found ' + parts.length + '.');
     const [index, nanos, name64, input64, status, output64] = parts;
     if (!/^(0|[1-9][0-9]*)$/.test(index)) throw new Error('Line ' + (n + 1) + ': call index must be a nonnegative integer.');
-    if (index !== String(n - 1)) throw new Error('Line ' + (n + 1) + ': call indexes must be contiguous and start at 0.');
+    if (index !== String(calls.length)) throw new Error('Line ' + (n + 1) + ': call indexes must be contiguous and start at 0.');
     if (!/^(0|[1-9][0-9]*)$/.test(nanos)) throw new Error('Line ' + (n + 1) + ': durationNanos must be a nonnegative integer.');
     if (status !== 'OK' && status !== 'ERROR') throw new Error('Line ' + (n + 1) + ': status must be OK or ERROR.');
     const toolName = decodeField(name64, n + 1, 'tool name');
@@ -203,7 +232,7 @@ function parseTape(text, name) {
     if (status === 'ERROR') errors++;
     calls.push({ index, nanos: duration, name: toolName, input, status, output });
   }
-  return { name, calls, totalNanos, errors };
+  return { name, schemaVersion, completeness, metadata, calls, totalNanos, errors };
 }
 function durationParts(nanos) {
   // BigInt arithmetic preserves nanosecond precision without overflowing Number.
@@ -227,20 +256,48 @@ function firstDivergence(a, b) {
   }
   return null;
 }
+function shortPolicy(policyId) { return policyId.slice(0, 19) + '…'; }
+function completenessLabel(tape) {
+  return tape.completeness === 'legacy' ? 'LEGACY · UNKNOWN' : tape.completeness === 'closed' ? 'SESSION CLOSED' : 'INCOMPLETE';
+}
+function renderRecording() {
+  const tape = state.tape;
+  $('recording').hidden = !tape;
+  if (!tape) return;
+  $('recording').classList.toggle('incomplete', tape.completeness === 'incomplete');
+  $('recording-schema').textContent = 'TOOLTAPE v' + tape.schemaVersion;
+  $('recording-completeness').textContent = completenessLabel(tape);
+  $('recording-source').textContent = tape.metadata ? tape.metadata.source : 'Not recorded';
+  $('recording-policy').textContent = tape.metadata ? shortPolicy(tape.metadata.policyId) : 'Not recorded';
+  $('recording-policy').title = tape.metadata ? tape.metadata.policyId : 'Legacy v1 has no policy metadata';
+  $('recording-policy').setAttribute('aria-label', tape.metadata ? 'Capture policy ' + tape.metadata.policyId : 'Capture policy not recorded');
+  $('recording-note').textContent = tape.completeness === 'incomplete'
+    ? 'Missing END footer. This incomplete recording cannot be used for safe replay.'
+    : tape.completeness === 'closed'
+      ? 'END confirms the recording session closed with ' + tape.calls.length + ' calls. This does not prove business success.'
+      : 'Legacy v1 has no completion footer. Recording completeness is unknown; this is not a safe-replay recording.';
+}
 function renderComparison() {
   const hasComparison = Boolean(state.tape && state.comparison);
   $('comparison').hidden = !hasComparison;
   if (!hasComparison) { state.difference = null; return; }
   state.difference = firstDivergence(state.tape, state.comparison);
-  $('comparison').classList.toggle('different', Boolean(state.difference));
+  const a = state.tape.metadata, b = state.comparison.metadata;
+  const policyWarning = a && b
+    ? a.policyId !== b.policyId ? 'Different capture policies. Matching events do not establish equivalent coverage of redacted or omitted fields.' : ''
+    : 'Capture policy is unavailable for a legacy tape. Equivalent capture coverage cannot be verified.';
+  $('comparison').classList.toggle('different', Boolean(state.difference || policyWarning));
   $('jump-divergence').hidden = !state.difference;
-  if (state.difference) {
-    $('compare-title').textContent = 'First divergence · position ' + (state.difference.position + 1) + ' · ' + state.difference.fields.join(', ');
-    $('compare-note').textContent = state.tape.name + ' ↔ ' + state.comparison.name + ' · durations ignored';
-  } else {
-    $('compare-title').textContent = 'Same recorded behavior · all ' + state.tape.calls.length + ' calls match';
-    $('compare-note').textContent = state.tape.name + ' ↔ ' + state.comparison.name + ' · durations ignored';
-  }
+  $('compare-title').textContent = state.difference
+    ? 'First divergence · position ' + (state.difference.position + 1) + ' · ' + state.difference.fields.join(', ')
+    : 'Same recorded behavior · all ' + state.tape.calls.length + ' calls match';
+  $('compare-note').textContent = state.tape.name + ' ↔ ' + state.comparison.name + ' · durations and metadata ignored for event equality';
+  $('compare-context').textContent = 'Comparison: v' + state.comparison.schemaVersion + ' · ' + completenessLabel(state.comparison)
+    + (b ? ' · source ' + b.source + ' · policy ' + shortPolicy(b.policyId) : ' · source / policy not recorded')
+    + (state.comparison.completeness === 'incomplete' ? ' · Missing END; cannot be used for safe replay.' : state.comparison.completeness === 'closed' ? ' · Session closure does not prove business success.' : ' · Recording completeness unknown.');
+  $('compare-context').title = b ? 'Capture policy ' + b.policyId : '';
+  $('compare-policy-warning').hidden = !policyWarning;
+  $('compare-policy-warning').textContent = policyWarning;
 }
 function renderStats() {
   const tape = state.tape;
@@ -397,8 +454,8 @@ function loadPrimary(tape) {
   state.tape = tape; state.comparison = null; state.selected = 0; state.limit = 250;
   state.compareVersion++;
   $('search').value = ''; $('errors-only').checked = false;
-  renderStats(); renderComparison(); renderTimeline(); renderInspector();
-  announce('Opened ' + tape.name + ', ' + tape.calls.length + ' calls, ' + tape.errors + ' errors.');
+  renderRecording(); renderStats(); renderComparison(); renderTimeline(); renderInspector();
+  announce('Opened ' + tape.name + ', ' + tape.calls.length + ' calls, ' + tape.errors + ' errors. ' + completenessLabel(tape) + '. ' + $('recording-note').textContent);
 }
 async function readFile(file, compare) {
   if (!file) return;
@@ -418,7 +475,7 @@ async function readFile(file, compare) {
     if (compare) {
       state.comparison = tape;
       renderComparison(); renderInspector();
-      announce(state.difference ? $('compare-title').textContent : 'All recorded calls match.');
+      announce($('compare-title').textContent + '. ' + $('compare-context').textContent + ' ' + $('compare-policy-warning').textContent);
     } else loadPrimary(tape);
   } catch (error) { if (current()) showError('Could not open ' + file.name + '\n' + error.message); }
 }

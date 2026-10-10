@@ -1,0 +1,45 @@
+name: viewer browser
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - name: Install pinned development dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Chromium and system dependencies
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Run dependency-free checks
+        run: npm test
+      - name: Run actual offline browser checks and capture screenshots
+        run: npm run test:browser
+      - name: Upload screenshots, provenance, report, and failure traces
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: viewer-browser-${{ github.sha }}
+          path: |
+            viewer/browser-tests/artifacts/
+            viewer/browser-tests/report/
+            viewer/browser-tests/results/
+          retention-days: 14
+          if-no-files-found: error

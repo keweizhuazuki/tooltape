@@ -11,3 +11,7 @@
 - Files inherit OS permissions/umask. Store sensitive fixtures in access-controlled locations; do not commit unreviewed tapes. ToolTape does not encrypt files.
 
 Report security concerns privately to the repository owner via their public GitHub profile contact options; do not post real secrets in issues. No private disclosure channel is claimed until one is configured.
+
+## v2 session safety
+
+New recordings include a capture-policy fingerprint and static provenance label. Replay rejects a v2 tape if its policy differs or the recording lacks a valid END marker. An END marker means the recording scope closed; it does not prove business success, durability, authenticity or absence of tampering. Legacy v1 fixtures remain usable but cannot offer these checks. Source labels must be explicitly reviewed static identifiers, never user content or secrets.

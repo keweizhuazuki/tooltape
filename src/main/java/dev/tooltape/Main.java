@@ -5,6 +5,8 @@ import java.util.*;
 
 /** CLI exits: 0 success/equal; 1 divergence; 2 usage/invalid tape/I/O. */
 public final class Main {
+  public static final String VERSION = "0.2.0";
+
   private Main() {}
 
   public static void main(String[] args) {
@@ -14,9 +16,23 @@ public final class Main {
 
   public static int run(String[] args) {
     try {
+      if (args.length == 1 && args[0].equals("--version")) {
+        System.out.println("ToolTape " + VERSION + " (schemas 1, 2)");
+        return 0;
+      }
       if (args.length == 2 && args[0].equals("inspect")) {
         Tape tape = Tape.read(Path.of(args[1]));
-        System.out.println("ToolTape v1 · " + tape.events().size() + " serial events");
+        System.out.println(
+            "ToolTape v" + tape.version() + " · " + tape.events().size() + " serial events");
+        if (tape.metadata() != null)
+          System.out.println(
+              "Session: "
+                  + (tape.complete() ? "CLOSED" : "INCOMPLETE")
+                  + " · source="
+                  + tape.metadata().source()
+                  + " · policy="
+                  + tape.metadata().policyId());
+        else System.out.println("Legacy v1: policy and completion are unverified");
         for (Tape.Event e : tape.events())
           System.out.printf(
               Locale.ROOT,
@@ -36,7 +52,16 @@ public final class Main {
       }
       if (args.length == 2 && args[0].equals("validate")) {
         Tape tape = Tape.read(Path.of(args[1]));
-        System.out.println("VALID: " + tape.events().size() + " events, schema v1");
+        if (tape.version() == 2 && !tape.complete())
+          throw new IllegalArgumentException("Incomplete v2 tape: no verified END marker");
+        System.out.println(
+            "VALID: "
+                + tape.events().size()
+                + " events, schema v"
+                + tape.version()
+                + (tape.version() == 1
+                    ? " (legacy policy/completion unverified)"
+                    : " (closed session)"));
         return 0;
       }
       System.err.println(

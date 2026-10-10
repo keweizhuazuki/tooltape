@@ -1,0 +1,17 @@
+{
+  "name": "tooltape-viewer-checks",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Development-only browser checks for the dependency-free ToolTape viewer",
+  "scripts": {
+    "test": "node test-core.cjs && node test-interactions.cjs",
+    "test:browser": "playwright test --config browser-tests/playwright.config.cjs",
+    "test:browser:list": "playwright test --config browser-tests/playwright.config.cjs --list"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

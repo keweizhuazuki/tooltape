@@ -7,9 +7,31 @@ import java.nio.file.*;
 import java.util.*;
 
 /** Immutable, versioned tape; reads reject malformed, oversized, or truncated records. */
-public record Tape(List<Tape.Event> events) {
+public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete) {
   public static final String HEADER = "TOOLTAPE\t1";
+  public static final String HEADER_V2 = "TOOLTAPE\t2";
   public static final int MAX_BYTES = 16 * 1024 * 1024;
+
+  /** Legacy in-memory tape: no policy identity or completion evidence. */
+  public Tape(List<Event> events) {
+    this(events, null, false);
+  }
+
+  public int version() {
+    return metadata == null ? 1 : 2;
+  }
+
+  public record Metadata(String policyId, String source) {
+    public Metadata {
+      if (policyId == null || !policyId.matches("sha256:[0-9a-f]{64}"))
+        throw new IllegalArgumentException("Invalid policy identifier");
+      validateName(source);
+    }
+
+    String line() {
+      return "META\t" + encode(Json.write(Map.of("policyId", policyId, "source", source)));
+    }
+  }
 
   public Tape {
     events = List.copyOf(events);
@@ -87,11 +109,45 @@ public record Tape(List<Tape.Event> events) {
     }
     if (!text.endsWith("\n")) throw new IOException("Truncated tape: missing final newline");
     String[] lines = text.split("\n", -1);
-    if (!lines[0].equals(HEADER)) throw new IOException("Unsupported tape header/version");
+    boolean v2 = lines[0].equals(HEADER_V2);
+    if (!v2 && !lines[0].equals(HEADER)) throw new IOException("Unsupported tape header/version");
+    Metadata metadata = null;
+    int firstEvent = 1;
+    if (v2) {
+      try {
+        if (lines.length < 3 || !lines[1].startsWith("META\t"))
+          throw new IllegalArgumentException("Missing metadata");
+        String[] fields = lines[1].split("\t", -1);
+        if (fields.length != 2) throw new IllegalArgumentException("Invalid metadata row");
+        String metadataJson = decode(fields[1]);
+        Map<String, Object> values = Json.object(metadataJson);
+        if (!Json.write(values).equals(metadataJson))
+          throw new IllegalArgumentException("Metadata JSON must be canonical");
+        if (!values.keySet().equals(Set.of("policyId", "source")))
+          throw new IllegalArgumentException("Unknown or missing metadata fields");
+        if (!(values.get("policyId") instanceof String)
+            || !(values.get("source") instanceof String))
+          throw new IllegalArgumentException("Metadata values must be strings");
+        metadata = new Metadata((String) values.get("policyId"), (String) values.get("source"));
+      } catch (IllegalArgumentException | CharacterCodingException e) {
+        throw new IOException("Invalid v2 metadata: " + e.getMessage(), e);
+      }
+      firstEvent = 2;
+    }
+    boolean complete = false;
     List<Event> events = new ArrayList<>();
-    for (int i = 1; i < lines.length - 1; i++)
+    for (int i = firstEvent; i < lines.length - 1; i++)
       try {
         String[] c = lines[i].split("\t", -1);
+        if (v2 && c[0].equals("END")) {
+          if (c.length != 2
+              || !c[1].matches("0|[1-9][0-9]*")
+              || Integer.parseInt(c[1]) != events.size()
+              || i != lines.length - 2)
+            throw new IllegalArgumentException("Invalid completion footer");
+          complete = true;
+          continue;
+        }
         if (c.length != 6) throw new IllegalArgumentException("Expected six columns");
         if (!c[0].matches("0|[1-9][0-9]*") || !c[1].matches("0|[1-9][0-9]*"))
           throw new IllegalArgumentException("Non-canonical index/duration");
@@ -107,7 +163,7 @@ public record Tape(List<Tape.Event> events) {
         throw new IOException("Invalid event at line " + (i + 1) + ": " + e.getMessage(), e);
       }
     try {
-      return new Tape(events);
+      return new Tape(events, metadata, complete);
     } catch (IllegalArgumentException e) {
       throw new IOException(e.getMessage(), e);
     }
@@ -132,9 +188,22 @@ public record Tape(List<Tape.Event> events) {
               case "status" -> b.status();
               default -> b.result();
             };
-        if (!x.equals(y))
+        if (!x.equals(y)) {
+          String location = "";
+          if (field.equals("input")
+              || (field.equals("result") && a.status().equals("OK") && b.status().equals("OK")))
+            location = " at " + Json.firstDifference(Json.read(x), Json.read(y)).orElse("");
           return Optional.of(
-              "Event " + i + " differs: " + field + "\nexpected: " + x + "\nactual:   " + y);
+              "Event "
+                  + i
+                  + " differs: "
+                  + field
+                  + location
+                  + "\nexpected: "
+                  + x
+                  + "\nactual:   "
+                  + y);
+        }
       }
     }
     return events.size() == other.events.size()
