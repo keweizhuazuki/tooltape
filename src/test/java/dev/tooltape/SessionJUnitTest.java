@@ -116,6 +116,26 @@ class SessionJUnitTest {
   }
 
   @Test
+  void fatalToolErrorLeavesSessionIncomplete() throws Exception {
+    Path path = dir.resolve("fatal.tape");
+    try (Recorder recorder =
+        new Recorder(
+            path,
+            (n, a) -> {
+              throw new AssertionError("private fatal message");
+            },
+            policy)) {
+      assertThrows(AssertionError.class, () -> recorder.call("tool", Map.of()));
+      assertThrows(IllegalStateException.class, () -> recorder.call("tool", Map.of()));
+    }
+    Tape tape = Tape.read(path);
+    assertFalse(tape.complete());
+    assertTrue(tape.events().isEmpty());
+    assertFalse(Files.readString(path).contains("private fatal message"));
+    assertThrows(IllegalArgumentException.class, () -> new Replay(tape, policy));
+  }
+
+  @Test
   void legacyFixtureRemainsReadableAndReplayable() throws Exception {
     Tape tape = Tape.read(Path.of("fixtures/weather-retry.tape"));
     assertEquals(1, tape.version());

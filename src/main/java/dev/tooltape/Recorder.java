@@ -71,6 +71,10 @@ public final class Recorder implements Tool, AutoCloseable {
           original.addSuppressed(writeFailure);
         }
         throw original;
+      } catch (Error fatal) {
+        // An unrecorded fatal call must never leave a session that looks replay-complete.
+        poisoned = true;
+        throw fatal;
       }
       try {
         append(
