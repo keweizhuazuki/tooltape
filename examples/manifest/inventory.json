@@ -1,0 +1,7 @@
+{
+  "manifestVersion": 1,
+  "files": [
+    "../../fixtures/weather-retry.tape",
+    "天气 重试🌧.tape"
+  ]
+}

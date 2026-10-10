@@ -70,7 +70,7 @@ java -jar target/tooltape.jar inspect target/weather.tape
 
 #### Windows PowerShell
 
-为保证 Windows CLI 可移植性，请使用完整路径均为 ASCII 的文件名。托管 JDK 17/21 启动器可能在 ToolTape 收到参数前替换当前代码页不支持的字符，单纯加引号无法解决；文件内部 UTF-8 内容仍受支持。[已测得的文件名限制 →](docs/BATCH_REPORTS.zh-CN.md#windows-文件名传递限制)
+为保证 Windows CLI 可移植性，请使用完整路径均为 ASCII 的文件名。托管 JDK 17/21 启动器可能在 ToolTape 收到参数前替换当前代码页不支持的字符，单纯加引号无法解决。Unicode 录制文件名可使用下文的 UTF-8 批量清单，并给清单参数使用 ASCII 路径；文件内部 UTF-8 内容仍受支持。[已测得的文件名限制 →](docs/BATCH_REPORTS.zh-CN.md#windows-文件名传递限制)
 
 ```powershell
 git clone https://github.com/keweizhuazuki/tooltape.git
@@ -105,6 +105,14 @@ JSON 报告采用版本化契约和明确退出码：**0** 有效或匹配，**1
 仅允许 v2 的 CI 任务可在任一命令的 `--json` 后添加 `--require-v2`。旧格式输入会以退出码 2 和 `LEGACY_TAPE` 失败；默认行为及报告 v1 结构保持不变。这只检查格式准入，不证明来源真实性或业务成功。
 
 明确的录制清单可使用 `validate-batch --json [--require-v2] <file>...`：串行检查最多 64 个文件，收集普通失败，以索引关联结果，并返回一份报告及汇总退出码 0/2。原有单文件命令保持不变。[批量契约及跨平台 CI 示例 →](docs/BATCH_REPORTS.zh-CN.md)
+
+可把 Unicode 文件名放进显式 UTF-8 清单，避开这些条目的原生 argv 转码：
+
+```sh
+java -jar target/tooltape.jar validate-batch --json --manifest examples/manifest/inventory.json
+```
+
+可执行示例包含 `天气 重试🌧.tape`；路径相对于清单，而不是工作目录。清单限制为 64 KiB、64 条，不提供自动发现或 URL 加载。Windows 命令行中的清单路径本身仍应使用 ASCII。[格式与路径规则 →](docs/BATCH_REPORTS.zh-CN.md#utf-8-清单无需通过-argv-传递-unicode-文件名)
 
 [报告结构、兼容规则及跨平台命令 →](docs/CLI_REPORTS.zh-CN.md)
 
@@ -171,6 +179,8 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 本次已完成（v0.2）
 
+- 有界 UTF-8 录制清单避开 Unicode 文件名的原生参数转码，按清单所在目录解析，保留原有安全批量报告
+
 - 可选的不可变 Jupiter 回放夹具，支持命名动态测试、JAR 内资源及调用方持有的有界流解析
 
 - 有明确数量上限、保持输入顺序的录制清单校验，使用独立 JSON 外层、安全逐项错误及汇总 CI 状态
@@ -206,7 +216,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 下次升级
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
-2. 先补充多个独立编写的应用回放场景，再考虑目录发现或自动基线管理。在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
+2. 先为显式清单和回放流程补充多个独立编写的应用场景，再考虑目录发现或自动基线管理。在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
 3. 在跨引擎检查基础上增加辅助技术评审和真机测试；引擎模拟不代表原生 Safari/iOS 或 Android 兼容。
 4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
 5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。

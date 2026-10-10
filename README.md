@@ -74,7 +74,7 @@ java -jar target/tooltape.jar inspect target/weather.tape
 
 #### Windows PowerShell
 
-For portable Windows CLI jobs, use ASCII-only full paths. Hosted JDK 17/21 launchers can replace characters outside the active code page before ToolTape receives them; quoting alone does not fix this. UTF-8 tape contents remain supported. [Measured filename limitation →](docs/BATCH_REPORTS.md#windows-filename-transport)
+For portable Windows CLI jobs, use ASCII-only full paths. Hosted JDK 17/21 launchers can replace characters outside the active code page before ToolTape receives them; quoting alone does not fix this. For Unicode fixture filenames, use the UTF-8 batch manifest below with an ASCII manifest argument. UTF-8 tape contents remain supported. [Measured filename limitation →](docs/BATCH_REPORTS.md#windows-filename-transport)
 
 ```powershell
 git clone https://github.com/keweizhuazuki/tooltape.git
@@ -109,6 +109,14 @@ JSON reports have a versioned contract and exit codes: **0** valid/matching, **1
 For v2-only CI jobs, add `--require-v2` immediately after `--json` in either command. Legacy inputs then fail with exit 2 and `LEGACY_TAPE`, while default behavior and the report v1 structure stay unchanged. This checks schema eligibility, not authenticity or business success.
 
 For an explicit fixture inventory, `validate-batch --json [--require-v2] <file>...` checks up to 64 files serially, collects ordinary failures and returns one index-only report with aggregate exit 0/2. Existing single-file commands stay unchanged. [Batch contract and portable CI examples →](docs/BATCH_REPORTS.md)
+
+Unicode filenames can be listed inside an explicit UTF-8 manifest, avoiding native argv conversion for those entries:
+
+```sh
+java -jar target/tooltape.jar validate-batch --json --manifest examples/manifest/inventory.json
+```
+
+The runnable example includes `天气 重试🌧.tape`; paths are relative to the manifest, not the working directory. The manifest is bounded to 64 KiB/64 entries and has no discovery or URL loading. Its own Windows command-line path should remain ASCII. [Schema and path rules →](docs/BATCH_REPORTS.md#utf-8-manifest-unicode-filenames-without-unicode-argv)
 
 [Report schema, compatibility rules and shell examples →](docs/CLI_REPORTS.md)
 
@@ -176,6 +184,8 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Completed in v0.2
 
+- Bounded UTF-8 fixture manifests bypass native argv conversion for Unicode filenames, with manifest-relative resolution and unchanged safe batch reports
+
 - Optional immutable Jupiter replay fixtures with named dynamic tests, JAR-resource loading and caller-owned bounded stream parsing
 
 - Bounded, ordered fixture-inventory validation with an independent JSON envelope, safe per-input failures and aggregate CI status
@@ -211,7 +221,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Next upgrade
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
-2. Extend replay-fixture workflow examples with multiple independently authored application scenarios before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
+2. Extend the explicit manifest and replay-fixture workflow examples with multiple independently authored application scenarios before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
 3. Extend cross-engine checks with assistive-technology review and physical-device testing; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.
