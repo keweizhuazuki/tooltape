@@ -46,7 +46,7 @@ CI 提供经过验证的 JAR 和 SHA-256 校验文件，尚未发布到 Maven Ce
 当前经过验证的 v0.2 构建可从对应成功的 CI 下载：
 
 ```sh
-gh run download 38036648099 --repo keweizhuazuki/tooltape --name tooltape-dist-62095438d459dc693ef946fa88b0bca0b6f95423
+gh run download 38040769746 --repo keweizhuazuki/tooltape --name tooltape-dist-b7e099e3267e946045618e543c8ae2850a0cb88f
 sha256sum -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
@@ -158,7 +158,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 验证状态
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 164 个真实 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
-- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/4/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
+- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/9/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)通过 153 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
