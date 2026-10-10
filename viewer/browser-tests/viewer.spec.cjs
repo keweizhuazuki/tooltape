@@ -806,6 +806,120 @@ test.describe('comparison-only inspection selection', () => {
     await expect(page.locator('#inspector')).toContainText('Matches the comparison tape.');
   });
 
+  test.describe('async payload focus', () => {
+    // The read-completion barrier and committed comparison name precede each
+    // final focus assertion. Keep intentional regression failures bounded in all five
+    // browser projects without adding sleeps or modifying application state.
+    async function expectCompletedComparison(page, name) {
+      await releaseFileRead(page, name);
+      await expect(page.locator('#compare-note')).toContainText(name);
+    }
+
+    async function expectRetainedKeyboardFocus(locator) {
+      await expect(locator).toBeFocused({ timeout: 2000 });
+      await expectVisibleKeyboardFocus(locator);
+    }
+
+    test('a removed comparison input falls back to the inspector and restores the primary bookmark', async ({ page }) => {
+      const replacementName = 'focus-equal-replacement.tape';
+      await deferFileReads(page, [replacementName]);
+      await inspectExtraCall(page);
+      await comparisonInput(page).setInputFiles(file(replacementName, tape(primaryRows)));
+      await expect(page.locator('#compare-note')).toContainText('bookmark-extension.tape');
+      await page.keyboard.press('Tab');
+      await expectVisibleKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
+
+      await expectCompletedComparison(page, replacementName);
+      await expect(page.locator('#compare-title')).toContainText('all 2 calls match');
+      await expectSavedPrimary(page);
+      await expect(page.getByLabel('comparison input', { exact: true })).toHaveCount(0);
+      await expectRetainedKeyboardFocus(page.locator('#inspector'));
+      // The fallback remains a useful keyboard starting point after restoration.
+      await page.keyboard.press('Tab');
+      await expectVisibleKeyboardFocus(page.getByLabel('input', { exact: true }));
+    });
+
+    for (const label of ['input', 'output']) {
+      test(`a surviving primary ${label} keeps keyboard focus after a delayed comparison replacement`, async ({ page }) => {
+        const replacementName = 'focus-primary-' + label + '-replacement.tape';
+        await deferFileReads(page, [replacementName]);
+        await primaryInput(page).setInputFiles(file('focus-primary.tape', tape(primaryRows)));
+        await callAt(page, 1).click();
+        await comparisonInput(page).setInputFiles(file('focus-primary-drift.tape', tape([
+          primaryRows[0], { ...primaryRows[1], output: '{"comparison":"old drift"}' }
+        ])));
+        await expect(page.getByLabel('comparison output', { exact: true })).toContainText('old drift');
+        await comparisonInput(page).setInputFiles(file(replacementName, tape(primaryRows)));
+        await expect(page.locator('#compare-note')).toContainText('focus-primary-drift.tape');
+        // Move to the payload while the file is still pending, so restoration
+        // must follow current focus rather than focus captured when loading.
+        await detailsFromFilters(page, 'Enter');
+        await page.keyboard.press('Tab');
+        if (label === 'output') await page.keyboard.press('Tab');
+        await expectVisibleKeyboardFocus(page.getByLabel(label, { exact: true }));
+
+        await expectCompletedComparison(page, replacementName);
+        await expect(page.locator('#compare-title')).toContainText('all 2 calls match');
+        await expectSavedPrimary(page);
+        await expectRetainedKeyboardFocus(page.getByLabel(label, { exact: true }));
+      });
+    }
+
+    test('a delayed comparison completion does not steal newer focus outside the inspector', async ({ page }) => {
+      const replacementName = 'focus-outside-replacement.tape';
+      await deferFileReads(page, [replacementName]);
+      await inspectExtraCall(page);
+      await page.keyboard.press('Tab');
+      await expectVisibleKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
+      await comparisonInput(page).setInputFiles(file(replacementName, tape(primaryRows)));
+      await expect(page.locator('#compare-note')).toContainText('bookmark-extension.tape');
+      await page.getByRole('searchbox').focus();
+      await page.keyboard.press('Tab');
+      const outsideControl = page.getByLabel('Errors only', { exact: true });
+      await expectVisibleKeyboardFocus(outsideControl);
+
+      await expectCompletedComparison(page, replacementName);
+      await expect(page.locator('#compare-title')).toContainText('all 2 calls match');
+      await expectSavedPrimary(page);
+      await expectRetainedKeyboardFocus(outsideControl);
+      await expect(outsideControl).not.toBeChecked();
+      await expect(page.getByRole('searchbox')).toHaveValue('');
+    });
+
+    test('a stale comparison completion cannot replace the newer payload or its keyboard focus', async ({ page }) => {
+      const staleName = 'focus-stale-replacement.tape';
+      await deferFileReads(page, [staleName]);
+      await inspectExtraCall(page);
+      await page.keyboard.press('Tab');
+      await expectVisibleKeyboardFocus(page.getByLabel('comparison input', { exact: true }));
+      await comparisonInput(page).setInputFiles(file(staleName, tape(primaryRows)));
+      await expect(page.locator('#compare-note')).toContainText('bookmark-extension.tape');
+      const newerName = 'focus-newer-extension.tape';
+      await comparisonInput(page).setInputFiles(file(newerName, tape([
+        ...primaryRows, { ...extraRow, output: '{"comparison":"newer extra"}' }
+      ])));
+      await expect(page.locator('#compare-note')).toContainText(newerName);
+      await expect(page.getByLabel('comparison output', { exact: true })).toContainText('newer extra');
+      await detailsFromFilters(page, 'Enter');
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Tab');
+      const currentPayload = page.getByLabel('comparison output', { exact: true });
+      await expectVisibleKeyboardFocus(currentPayload);
+      const focusedNode = await currentPayload.elementHandle();
+
+      // An obsolete result must finish before checking the unchanged visible
+      // state; checking only the new filename could pass before it was consumed.
+      await releaseFileRead(page, staleName);
+      await expect(page.locator('#compare-note')).toContainText(newerName);
+      await expect(page.locator('#compare-title')).toContainText('position 3');
+      await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+      await expect(currentPayload).toContainText('newer extra');
+      await expect(pressedCalls(page)).toHaveCount(0);
+      expect(await focusedNode.evaluate(element => element.isConnected), 'a stale read does not remount the inspector').toBe(true);
+      await expectRetainedKeyboardFocus(currentPayload);
+    });
+  });
+
   test('longer and shorter still-valid replacements retain the comparison-only position', async ({ page }) => {
     await inspectExtraCall(page);
     const changedPrefix = primaryRows.map((row, index) => index ? row : { ...row, output: '{"different":true}' });
