@@ -12,5 +12,6 @@ java -ea -cp target/classes:target/test-classes dev.tooltape.CoreTest
 java -ea -cp target/classes:target/test-classes dev.tooltape.CliProcessTest
 java -ea -cp target/classes:target/test-classes dev.tooltape.BatchProcessTest
 java -ea -Dtooltape.test.jar=target/tooltape.jar -cp target/classes:target/test-classes dev.tooltape.ManifestProcessTest
-javac -encoding UTF-8 --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java
+javac -encoding UTF-8 --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java examples/NumericBoundaryRegression.java
+java -cp target/classes:target/example-classes NumericBoundaryRegression
 printf 'Built target/tooltape.jar\n'

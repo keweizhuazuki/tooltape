@@ -72,6 +72,12 @@ class WeatherRegressionTest {
 
 实际使用时，通常把 `tool` 传给自己的编排方法，而不是在测试中逐个手写调用。副作用边界应显式注入。辅助类没有真实工具委托，不会替你调用外部工具，但回调中的其他代码仍是普通 Java，并非沙箱。
 
+## 数字断言与领域结果
+
+无论真实工具返回 `Integer`、`Long`、`Float` 还是其他受支持的 JSON 数字，回放数字均为 `BigDecimal`，小数位数也会规范化。`assertEquals(22, result.get("temperature"))` 比较 Java 类型，因此对回放的 `BigDecimal` 会失败；上面的字符串断言有意校验规范化后的 JSON 数字文本。
+
+实际工作流应在录制和回放中使用相同的领域转换。[可执行数字示例](../examples/NumericBoundaryRegression.java)通过 `new BigDecimal(number.toString()).intValueExact()` 转换 `Number`，拒绝小数或越界计数，而不是截断。要求精确值时，不应替换为 `Number.intValue()`。十进制相等应使用明确的领域比较或小数位数规则，不能忽略 `BigDecimal.equals` 同时比较小数位数这一点。辅助类不会恢复原始 Java 包装类型或未捕获字段。
+
 ## 命名动态测试
 
 ```java

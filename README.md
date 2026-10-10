@@ -149,6 +149,22 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 
 `Tool` accepts and returns `Map<String,Object>` of JSON-compatible data. Recorded output is sanitized, so allow the fields your workflow requires. Only explicitly allowed top-level scalars are captured; nested values become `[REDACTED]`. Credential-like field names are always excluded. Excluded input fields cannot be regression-checked.
 
+Allowed strings are retained as supplied. The core does not automatically collect prompts, headers or exception messages, but putting that content into an allowed scalar field can record it. Review values, not just field names.
+
+### JSON values, not Java wrapper types
+
+Recording returns the live tool's original result. Replay returns a fresh sanitized JSON object: all numbers are `BigDecimal`, so an `Integer` cast or Java `Map.equals` comparison with the live result can fail even when the JSON values match. Numeric scale and concrete wrapper classes are not retained. Normalize results into domain types in the same workflow for recording and replay:
+
+```java
+static int exactInt(Object value) {
+  if (!(value instanceof Number number))
+    throw new IllegalArgumentException("Expected a JSON number");
+  return new java.math.BigDecimal(number.toString()).intValueExact();
+}
+```
+
+For integral domain fields, this rejects fractions and overflow; `Number.intValue()` can silently truncate. For decimal domains, retain `BigDecimal` and define the required scale/rounding explicitly. The runnable [numeric boundary example](examples/NumericBoundaryRegression.java) uses the same inventory workflow with a live `Integer` and replayed `BigDecimal`, then checks exact-conversion failures. Both build scripts execute it; run it again with `java -cp target/tooltape.jar:target/example-classes NumericBoundaryRegression` (PowerShell: quote the classpath and use `;` instead of `:`).
+
 New recordings are schema v2. The hardened `scalar-v2` policy deliberately rejects earlier v2 fingerprints; [migration details](docs/SPRING_AI.md#policy-hardening-migration) explain why fixtures must be reviewed and re-recorded. They store a SHA-256 identity of the allowlist configuration and an optional static source label (`new Recorder(path, tool, policy, "my-workflow")`). Replay rejects policy changes and recordings without a valid closed-session marker before executing your workflow. Closing a recording is not proof of business success. Existing v1 fixtures remain readable with policy/completeness checks unavailable.
 
 Recorded exceptions use `Replay.RecordedToolException.originalType()`, not the original Java subclass. Normalize errors in a domain adapter when business code branches on exception type. The executable [retry example](examples/RetryRegression.java) shows this explicitly.
@@ -189,13 +205,15 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 - Optional Jupiter adapter: 20 tests passed locally under both 5.14.4 and 6.0.3, including actual JAR resources and real named dynamic-child outcomes. The [verified binary-consumer run](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449) passed 7 consumer tests in each Java 17/21 × Jupiter 5.14.4/6.0.3 combination, all against the same packaged adapter. Adapter compatibility is limited to these explicitly tested versions.
 
-- Local Linux/JDK 21: **45 dependency-free acceptance checks + 35 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
+- Local Linux/JDK 21: **45 dependency-free acceptance checks + 41 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/12/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 334 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120) passed 178 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
 
 - Bounded timeline pages for large valid recordings, with late-divergence navigation, truthful ranges and preserved keyboard focus/inspection
+
+- Explicit scalar-privacy and JSON runtime-value contracts, with an executable exact numeric-domain conversion example and packaged-consumer regressions
 
 - Bounded UTF-8 fixture manifests bypass native argv conversion for Unicode filenames, with manifest-relative resolution and unchanged safe batch reports
 
@@ -234,7 +252,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Next upgrade
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
-2. Extend the explicit manifest and replay-fixture workflow examples with multiple independently authored application scenarios before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
+2. Build on the numeric-domain and retry examples with multiple independently authored application scenarios for explicit manifests and replay fixtures before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
 3. Review the bounded-page navigation with assistive technologies and physical devices; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.

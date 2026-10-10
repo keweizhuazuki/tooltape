@@ -140,6 +140,22 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 
 `Tool` 输入输出为 JSON 兼容的 `Map<String,Object>`。回放返回脱敏后的结果，因此需允许业务逻辑依赖的字段。只保存明确允许的顶层标量；嵌套对象和数组替换为 `[REDACTED]`，凭据类字段名始终排除。未保存的输入字段无法参与回归校验。
 
+明确允许的字符串会原样保留。核心不会自动读取提示词、请求头或异常消息，但如果把这些内容放进允许捕获的标量字段，仍会录入。需要审查字段值，而不只是字段名。
+
+### JSON 值不保留 Java 包装类型
+
+录制调用返回真实工具的原始结果；回放返回重新解析的脱敏 JSON 对象，其中所有数字均为 `BigDecimal`。因此，即使 JSON 值相同，直接强转 `Integer` 或与真实结果做 Java `Map.equals` 比较仍可能失败。数字的小数位数及具体包装类型不会保留。录制和回放应在同一工作流中统一转换为领域类型：
+
+```java
+static int exactInt(Object value) {
+  if (!(value instanceof Number number))
+    throw new IllegalArgumentException("Expected a JSON number");
+  return new java.math.BigDecimal(number.toString()).intValueExact();
+}
+```
+
+整数领域字段采用此方式可拒绝小数及越界值；`Number.intValue()` 可能静默截断。十进制领域应保留 `BigDecimal` 并明确小数位数和舍入规则。[可执行数字边界示例](examples/NumericBoundaryRegression.java)让同一个库存工作流分别处理真实 `Integer` 和回放 `BigDecimal`，并验证精确转换拒绝无效值。两种构建脚本都会执行它；可再次运行 `java -cp target/tooltape.jar:target/example-classes NumericBoundaryRegression`（PowerShell 中给 classpath 加引号，并将 `:` 换成 `;`）。
+
 新录制采用 v2 格式；加固后的 scalar-v2 策略会明确拒绝旧 v2 指纹，需审阅后重新录制，详见[迁移说明](docs/SPRING_AI.zh-CN.md#策略加固迁移)。录制保存允许字段配置的 SHA-256 标识及可选的静态来源标签（`new Recorder(path, tool, policy, "my-workflow")`）。回放会在任何调用前拒绝策略变化或缺少有效关闭标记的数据。关闭录制不代表业务成功；旧 v1 数据仍可读取，但无法校验策略与完整性。
 
 录制异常通过 `Replay.RecordedToolException.originalType()` 提供原类型，不会实例化任意异常类。若业务逻辑依赖异常子类，请在领域适配器中统一错误类型；[可执行重试示例](examples/RetryRegression.java)对此有明确处理。
@@ -184,13 +200,15 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 - 可选 Jupiter 适配器：20 项测试在本地 5.14.4 和 6.0.3 下均通过，包含真实 JAR 资源及命名动态子测试结果。[已验证的二进制消费运行](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449)在 Java 17/21 × Jupiter 5.14.4/6.0.3 四组组合中各通过 7 项消费者测试，使用同一份适配器 JAR；兼容范围仅限明确验证的版本。
 
-- 本地 Linux/JDK 21：45 项无依赖检查及 35 项核心 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
+- 本地 Linux/JDK 21：45 项无依赖检查及 41 项核心 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/12/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：232 项解析与规范化检查、334 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120)通过 178 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
 
 - 大型有效录制采用有界时间线分页，靠后分歧跳转显示准确范围，并保留键盘焦点及查看项
+
+- 明确标量隐私与 JSON 运行时值契约，提供可执行的精确数字领域转换示例及独立 JAR 消费回归测试
 
 - 有界 UTF-8 录制清单避开 Unicode 文件名的原生参数转码，按清单所在目录解析，保留原有安全批量报告
 
@@ -229,7 +247,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 下次升级
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
-2. 先为显式清单和回放流程补充多个独立编写的应用场景，再考虑目录发现或自动基线管理。在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
+2. 在数字领域转换和重试示例基础上，为显式清单和回放流程补充多个独立编写的应用场景，再考虑目录发现或自动基线管理。在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
 3. 针对有界分页导航增加辅助技术评审和真机测试；引擎模拟不代表原生 Safari/iOS 或 Android 兼容。
 4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
 5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。
