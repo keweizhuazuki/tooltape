@@ -1,0 +1,33 @@
+{
+  "screenshot": "viewer-unicode-search.png",
+  "screenshotSha256": "b29976a6513f9aaf172c788bbb8c8d3f9725f98d06ba472259e5bcbf306712ed",
+  "kind": "actual chromium rendering, no image compositing",
+  "viewer": "viewer/index.html",
+  "viewerSha256": "94f974ceafa38634b32383d9faa127c79d7099107d277a92d153587e65e0e0ac",
+  "fixture": "Synthetic nine-call v1 tape; rocket query matches three original Unicode payloads while the selected inspector preserves canonical escaped JSON.",
+  "sourceFixture": "viewer/browser-tests/artifacts/screenshots/desktop-chromium/unicode-search.tape",
+  "sourceFixtureSha256": "8d3f8a2a9025ec086b113dbadca60633de099cac65781308e539a88580f37a93",
+  "fixtureEvidence": {
+    "query": "🚀",
+    "matchingPositions": [
+      1,
+      3,
+      7
+    ],
+    "selectedPosition": 1
+  },
+  "commit": "35e58fe9a11344c3aadb3ef534abfaa7142ce381",
+  "workflowRun": "38067175946",
+  "playwright": "1.64.0",
+  "browserName": "chromium",
+  "browser": "156.0.8078.4",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "isMobile": false,
+  "hasTouch": false,
+  "deviceScaleFactor": 1,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"
+}
