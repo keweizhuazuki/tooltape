@@ -73,3 +73,9 @@ exit $status
 ```
 
 These examples use the one checked-in v2 fixture. Add each reviewed fixture path explicitly as your corpus grows. Multi-pair comparison manifests, automatic baseline updates and candidate recording are outside this command's scope.
+
+## Verified platforms
+
+[Run 38042920703](https://github.com/keweizhuazuki/tooltape/actions/runs/38042920703) passed all six Linux/macOS/Windows × Java 17/21 builds. Linux/macOS ran 100 batch subprocess scenarios, including FIFO, character-device and symlink checks. Windows ran 94 scenarios, including symlinks and the measured quoted-Unicode limitation; the Unix device/FIFO fixtures and invalid Windows wildcard filename are explicitly unavailable there. This is not a claim that Windows named pipes were tested.
+
+The downloaded distribution JAR passed its SHA-256 check and five isolated consumer scenarios: mixed versions, required-v2 rejection, continuation after a missing file, 64 inputs and preflight rejection of 65 inputs. Existing 164 single-command subprocess scenarios and 24 JUnit tests also passed.

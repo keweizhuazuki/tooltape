@@ -73,3 +73,9 @@ exit $status
 ```
 
 示例使用仓库内唯一的 v2 数据。随着数据集增加，请明确添加每个经审阅的文件路径。多对比较清单、自动更新基线和生成候选录制均不属于此命令范围。
+
+## 已验证的平台
+
+[运行 38042920703](https://github.com/keweizhuazuki/tooltape/actions/runs/38042920703)通过全部六组 Linux/macOS/Windows × Java 17/21 构建。Linux/macOS 执行 100 个批量子进程场景，包含 FIFO、字符设备及符号链接；Windows 执行 94 个场景，包含符号链接及已测得的带引号 Unicode 限制。Unix 设备/FIFO 和 Windows 不允许的通配符文件名在 Windows 上明确标为不可用，不代表已测试 Windows 命名管道。
+
+下载后的分发 JAR 通过 SHA-256 校验及五项独立消费者检查：混合格式、要求 v2 后拒绝旧格式、缺失文件后继续处理、64 个输入、提前拒绝 65 个输入。原有 164 个单命令子进程场景及 24 项 JUnit 测试也全部通过。

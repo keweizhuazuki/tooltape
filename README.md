@@ -50,7 +50,7 @@ CI produces a verified JAR and SHA-256 checksums. It is not published on Maven C
 The tested v0.2 build can currently be downloaded from its successful CI run:
 
 ```sh
-gh run download 38040769746 --repo keweizhuazuki/tooltape --name tooltape-dist-b7e099e3267e946045618e543c8ae2850a0cb88f
+gh run download 38042920703 --repo keweizhuazuki/tooltape --name tooltape-dist-9813415d22ccc406a47a64cdfe254093a00536c7
 sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
@@ -167,7 +167,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Verification
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/9/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/10/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
