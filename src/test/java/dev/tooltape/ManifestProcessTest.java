@@ -40,6 +40,9 @@ public final class ManifestProcessTest {
   private static int checks;
   private static int processes;
   private static int namespaceBridgeProcesses;
+  private static int invalidPathBridgeProcesses;
+  private static int argumentProbeProcesses;
+  private static final String QUOTED_MANIFEST_PATH = "PRIVATE_manifest\"invalid.json";
   private static final String[] GUARDED_DEVICE_PATHS = {
     "\\\\?\\C:\\PRIVATE_device\\manifest.json",
     "//?/C:/PRIVATE_device/manifest.json",
@@ -90,10 +93,17 @@ public final class ManifestProcessTest {
               + " manifest CLI checks across "
               + processes
               + " processes ("
-              + (processes - namespaceBridgeProcesses)
+              + (processes
+                  - namespaceBridgeProcesses
+                  - invalidPathBridgeProcesses
+                  - argumentProbeProcesses)
               + " native Main; "
               + namespaceBridgeProcesses
-              + " namespace-only injection; UTF-8, bounds, grammar, order, schemas, privacy)");
+              + " namespace-only injection; "
+              + invalidPathBridgeProcesses
+              + " invalid-path injection; "
+              + argumentProbeProcesses
+              + " argv probe; UTF-8, bounds, grammar, order, schemas, privacy)");
       System.out.println(
           "Native Main launch: " + (TEST_JAR == null ? "classpath" : "packaged JAR"));
       System.out.println(
@@ -447,15 +457,15 @@ public final class ManifestProcessTest {
       manifestIo(run(requireV2, "../PRIVATE_manifests"));
       manifestIo(run(requireV2, "../PRIVATE_manifests/manifest.json/PRIVATE_child"));
     }
-    for (String nativePath :
-        List.of("PRIVATE_manifest<invalid>.json", "PRIVATE_manifest\"invalid.json")) {
-      try {
-        Path.of(nativePath);
-        manifestIo(run(false, nativePath));
-      } catch (InvalidPathException expected) {
-        outerError(run(false, nativePath), "INVALID_ARGUMENTS", "Invalid command arguments.");
-      }
+    String nativePath = "PRIVATE_manifest<invalid>.json";
+    ProcessResult nativeResult = run(false, nativePath);
+    try {
+      nativeManifestPathResult(nativeResult, nativePath);
+    } catch (AssertionError failure) {
+      throw new AssertionError(
+          "Native manifest operand " + Json.write(nativePath) + "; CLI=" + nativeResult, failure);
     }
+    quotedManifestPath();
     Path unreadable = manifests.resolve("PRIVATE_unreadable.json");
     Files.writeString(unreadable, rawManifest(closed.name()));
     try {
@@ -472,6 +482,58 @@ public final class ManifestProcessTest {
     } catch (UnsupportedOperationException unavailable) {
       optionalSkips.add("POSIX unreadable manifest");
     }
+  }
+
+  private void nativeManifestPathResult(ProcessResult result, String path) {
+    boolean invalid = false;
+    try {
+      Path.of(path);
+    } catch (InvalidPathException expected) {
+      invalid = true;
+    }
+    if (invalid) outerError(result, "INVALID_ARGUMENTS", "Invalid command arguments.");
+    else manifestIo(result);
+  }
+
+  private void quotedManifestPath() throws Exception {
+    // Windows command-line quote parsing happens before Main. Measure that boundary instead of
+    // assuming ProcessBuilder's Java String survives unchanged as the child's Java String.
+    argumentProbeProcesses++;
+    ProcessResult probe = runEntrypoint(cwd, ArgumentProbeMain.class, QUOTED_MANIFEST_PATH);
+    equal(0, probe.exitCode(), "Quoted manifest argv probe exits successfully");
+    equal("", probe.stderr(), "Quoted manifest argv probe has no diagnostics");
+    Object observed = Json.read(probe.stdout());
+    equal(Json.write(observed) + "\n", probe.stdout(), "Argv probe emits one canonical document");
+    Object exact = argumentCodePoints(QUOTED_MANIFEST_PATH);
+    if (Objects.equals(exact, observed)) {
+      optionalChecks.add("embedded quote native argv: exact code-point transport");
+    } else {
+      check(
+          System.getProperty("os.name").startsWith("Windows"),
+          "Quoted manifest argv changes only on the measured Windows launcher boundary");
+      equal(
+          argumentCodePoints(QUOTED_MANIFEST_PATH.replace("\"", "")),
+          observed,
+          "Windows launcher removes exactly the embedded quote and preserves all other code"
+              + " points");
+      optionalChecks.add("embedded quote native argv: Windows launcher removes exactly U+0022");
+    }
+    // Test the exact provider-invalid string separately, without native quoting ambiguity.
+    // This is an in-child path test, not a native argv transport success claim.
+    for (boolean requireV2 : List.of(false, true)) {
+      invalidPathBridgeProcesses++;
+      ProcessResult injected =
+          runEntrypoint(
+              cwd,
+              InvalidManifestPathMain.class,
+              arguments(requireV2, "PRIVATE_QUOTED_MANIFEST_TOKEN"));
+      nativeManifestPathResult(injected, QUOTED_MANIFEST_PATH);
+    }
+  }
+
+  private static Object argumentCodePoints(String... args) {
+    return Json.read(
+        Json.write(Arrays.stream(args).map(value -> value.codePoints().boxed().toList()).toList()));
   }
 
   private void nonregularFilesAndSymlinks() throws Exception {
@@ -912,6 +974,24 @@ public final class ManifestProcessTest {
       String token = args[args.length - 1];
       int index = Integer.parseInt(token.substring("PRIVATE_DEVICE_TOKEN_".length()));
       args[args.length - 1] = GUARDED_DEVICE_PATHS[index];
+      Main.main(args);
+    }
+  }
+
+  /** Measures native quote transport without opening a path. */
+  public static final class ArgumentProbeMain {
+    public static void main(String[] args) {
+      System.out.print(Json.write(argumentCodePoints(args)));
+      System.out.print('\n');
+    }
+  }
+
+  /** The exact quoted string tests provider path rejection independently of native argv quoting. */
+  public static final class InvalidManifestPathMain {
+    public static void main(String[] args) {
+      if (!"PRIVATE_QUOTED_MANIFEST_TOKEN".equals(args[args.length - 1]))
+        throw new IllegalArgumentException("Expected quoted manifest token");
+      args[args.length - 1] = QUOTED_MANIFEST_PATH;
       Main.main(args);
     }
   }
