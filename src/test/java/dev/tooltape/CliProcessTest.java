@@ -3,6 +3,7 @@ package dev.tooltape;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +40,7 @@ public final class CliProcessTest {
   private static final int MAX_OUTPUT_BYTES = 64 * 1024;
   private static int checks;
   private static int processes;
+  private static int directRuns;
 
   private final Path directory;
   private final CapturePolicy policy = CapturePolicy.allow(Set.of(FIELD), Set.of(FIELD));
@@ -61,13 +63,16 @@ public final class CliProcessTest {
       test.compatibilityReports();
       test.invalidFiles();
       test.invalidArguments();
+      test.hostileArguments();
       test.humanCommands();
       System.out.println(
           "PASS: "
               + checks
               + " CLI checks across "
               + processes
-              + " processes (JSON, exits, compatibility, privacy, errors)");
+              + " processes and "
+              + directRuns
+              + " direct invocations (JSON, exits, compatibility, privacy, errors)");
     } finally {
       try (var paths = Files.walk(directory)) {
         for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
@@ -346,10 +351,46 @@ public final class CliProcessTest {
             new String[] {"diff", closed.toString(), closed.toString(), "--json"},
             new String[] {"inspect", "--json", closed.toString()},
             new String[] {"--json", "validate", closed.toString()},
-            new String[] {"PRIVATE_UNKNOWN_COMMAND_\"\n", "--json"},
+            new String[] {"PRIVATE_UNKNOWN_COMMAND_", "--json"},
             new String[] {"--json"})) {
       String command = Set.of("validate", "diff").contains(arguments[0]) ? arguments[0] : null;
       Map<String, Object> report = report(2, command, "error", arguments);
+      keys(report, "error");
+      error(report, "INVALID_ARGUMENTS");
+    }
+  }
+
+  private void hostileArguments() {
+    // Quotes and control characters have OS-dependent command-line reconstruction rules.
+    // Inject these exact arguments without an OS quoting layer; portable misuse still runs
+    // through real subprocesses above, and hostile tape contents do so throughout this suite.
+    for (String[] arguments :
+        List.of(
+            new String[] {"PRIVATE_UNKNOWN_COMMAND_\"\n", "--json"},
+            new String[] {"PRIVATE_UNKNOWN_COMMAND_\"\\\n\r\t\u0001", "--json"},
+            new String[] {"validate", "--json", "PRIVATE_INVALID_PATH_\u0000\"\n"},
+            new String[] {
+              "validate", "--json", closed.toString(), "PRIVATE_EXTRA_ARGUMENT_\"\\\n\r\t"
+            })) {
+      ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+      ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+      int exitCode;
+      try (PrintStream out = new PrintStream(stdout, true, StandardCharsets.UTF_8);
+          PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+        exitCode = Main.run(arguments, out, err);
+        directRuns++;
+      }
+      String command = "validate".equals(arguments[0]) ? "validate" : null;
+      Map<String, Object> report =
+          checkReport(
+              new ProcessResult(
+                  exitCode,
+                  stdout.toString(StandardCharsets.UTF_8),
+                  stderr.toString(StandardCharsets.UTF_8)),
+              2,
+              command,
+              "error",
+              arguments);
       keys(report, "error");
       error(report, "INVALID_ARGUMENTS");
     }
@@ -447,8 +488,12 @@ public final class CliProcessTest {
 
   private Map<String, Object> report(int exitCode, String command, String outcome, String... args)
       throws Exception {
-    ProcessResult process = run(args);
-    equal(exitCode, process.exitCode(), "Process exit for " + Arrays.toString(args));
+    return checkReport(run(args), exitCode, command, outcome, args);
+  }
+
+  private Map<String, Object> checkReport(
+      ProcessResult process, int exitCode, String command, String outcome, String... args) {
+    equal(exitCode, process.exitCode(), "Exit status for " + Arrays.toString(args));
     equal("", process.stderr(), "JSON mode leaves stderr empty");
     Map<String, Object> report = Json.object(process.stdout());
     equal(
@@ -459,7 +504,7 @@ public final class CliProcessTest {
     equal(Main.VERSION, report.get("tooltapeVersion"), "ToolTape version");
     equal(command, report.get("command"), "Reported command");
     equal(outcome, report.get("outcome"), "Reported outcome");
-    number(exitCode, report.get("exitCode"), "Reported exit matches actual process");
+    number(exitCode, report.get("exitCode"), "Reported exit matches actual status");
     for (String privateValue :
         List.of("PRIVATE_", "private.marker.", directory.toString(), "java.io.IOException"))
       check(

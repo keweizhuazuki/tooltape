@@ -50,7 +50,7 @@ CI produces a verified JAR and SHA-256 checksums. It is not published on Maven C
 The tested v0.2 build can currently be downloaded from its successful CI run:
 
 ```sh
-gh run download 38035619451 --repo keweizhuazuki/tooltape --name tooltape-dist-6cbb150b00fba0c32cd890e1034543e131e2f0ca
+gh run download 38036648099 --repo keweizhuazuki/tooltape --name tooltape-dist-62095438d459dc693ef946fa88b0bca0b6f95423
 sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
@@ -161,7 +161,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Verification
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 62 real CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619451): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/4/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
