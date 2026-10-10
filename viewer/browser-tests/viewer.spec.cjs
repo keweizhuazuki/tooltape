@@ -740,6 +740,273 @@ test('comparison ignores timing, finds drift, clears filters, and resets on a ne
   await expect(page.locator('#comparison')).toBeHidden();
 });
 
+test.describe('comparison-only inspection selection', () => {
+  // Every scenario runs in all five hosted projects. Drive only the public file
+  // inputs and native controls; do not write the viewer's internal state.
+  const primaryRows = [
+    { name: 'primary.first', input: '{"position":0}', output: '{"primary":"first"}' },
+    { name: 'primary.saved', input: '{"position":1}', output: '{"primary":"saved"}' }
+  ];
+  const extraRow = { name: 'comparison.extra', output: '{"comparison":"original extra"}' };
+  const primaryInput = page => page.getByLabel('Open primary tape', { exact: true });
+  const comparisonInput = page => page.getByLabel('Open comparison tape', { exact: true });
+  const jump = page => page.getByRole('button', { name: 'Inspect divergence', exact: true });
+  const clear = page => page.getByRole('button', { name: 'Clear comparison', exact: true });
+  const pressedCalls = page => page.locator('#timeline button[aria-pressed="true"]');
+
+  async function inspectExtraCall(page) {
+    await primaryInput(page).setInputFiles(file('bookmark-primary.tape', tape(primaryRows)));
+    await callAt(page, 1).click();
+    await comparisonInput(page).setInputFiles(file('bookmark-extension.tape', tape([...primaryRows, extraRow])));
+    await expect(page.locator('#compare-title')).toContainText('position 3');
+    await jump(page).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#inspector')).toBeFocused();
+    await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+    await expect(page.getByLabel('comparison output', { exact: true })).toContainText('original extra');
+    await expect(pressedCalls(page)).toHaveCount(0);
+  }
+
+  async function expectSavedPrimary(page) {
+    await expect(page.locator('#inspector h2')).toHaveText('primary.saved');
+    await expect(page.getByLabel('output', { exact: true })).toContainText('saved');
+    await expect(callAt(page, 1)).toHaveAttribute('aria-pressed', 'true');
+    await expect(callAt(page, 1)).toHaveClass(/selected/);
+    await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'false');
+    await expect(pressedCalls(page)).toHaveCount(1);
+    await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+  }
+
+  test('clearing after repeated missing-primary jumps restores the last primary call', async ({ page }) => {
+    await inspectExtraCall(page);
+    for (const key of ['Space', 'Enter']) {
+      await jump(page).focus();
+      await page.keyboard.press(key);
+      await expect(page.locator('#inspector')).toBeFocused();
+      await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+      await expect(pressedCalls(page)).toHaveCount(0);
+    }
+    await clear(page).focus();
+    await page.keyboard.press('Enter');
+    await expectSavedPrimary(page);
+    await expect(page.locator('#comparison')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Compare tape', exact: true })).toBeFocused();
+    await expect(page.locator('#announcer')).toHaveText('Comparison cleared.');
+  });
+
+  test('an equal-length replacement restores the primary call without moving row focus', async ({ page }) => {
+    await inspectExtraCall(page);
+    await callAt(page, 0).focus();
+    const focusedRow = await callAt(page, 0).elementHandle();
+    await comparisonInput(page).setInputFiles(file('bookmark-equal.tape', tape(primaryRows)));
+    await expect(page.locator('#compare-title')).toContainText('all 2 calls match');
+    await expectSavedPrimary(page);
+    await expect(callAt(page, 0)).toBeFocused();
+    expect(await focusedRow.evaluate(element => element.isConnected), 'replacement preserves mounted row identity').toBe(true);
+    await expect(page.locator('#inspector')).toContainText('Matches the comparison tape.');
+  });
+
+  test('longer and shorter still-valid replacements retain the comparison-only position', async ({ page }) => {
+    await inspectExtraCall(page);
+    const changedPrefix = primaryRows.map((row, index) => index ? row : { ...row, output: '{"different":true}' });
+    await comparisonInput(page).setInputFiles(file('bookmark-longer.tape', tape([
+      ...changedPrefix, { ...extraRow, output: '{"comparison":"replacement extra"}' },
+      { name: 'comparison.later', output: '{"comparison":"later call"}' }
+    ])));
+    // The new first divergence is elsewhere. Loading a comparison must neither
+    // jump to it nor abandon the still-present call being inspected.
+    await expect(page.locator('#compare-title')).toContainText('position 1');
+    await expect(page.locator('#inspector')).toBeFocused();
+    await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+    await expect(page.getByLabel('comparison output', { exact: true })).toContainText('replacement extra');
+    await expect(pressedCalls(page)).toHaveCount(0);
+    await comparisonInput(page).setInputFiles(file('bookmark-shorter-valid.tape', tape([
+      ...primaryRows, { ...extraRow, output: '{"comparison":"shorter valid extra"}' }
+    ])));
+    await expect(page.locator('#compare-title')).toContainText('position 3');
+    await expect(page.locator('#inspector')).toBeFocused();
+    await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+    await expect(page.getByLabel('comparison output', { exact: true })).toContainText('shorter valid extra');
+    await expect(pressedCalls(page)).toHaveCount(0);
+    await clear(page).click();
+    await expectSavedPrimary(page);
+  });
+
+  test('a failed replacement retains comparison-only details and the primary bookmark', async ({ page }) => {
+    await inspectExtraCall(page);
+    await comparisonInput(page).setInputFiles(file('bookmark-invalid.tape', 'TOOLTAPE\t1'));
+    await expect(page.getByRole('alert')).toContainText('Could not open bookmark-invalid.tape');
+    await expect(page.locator('#compare-note')).toContainText('bookmark-extension.tape');
+    await expect(page.locator('#inspector')).toBeFocused();
+    await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+    await expect(page.getByLabel('comparison output', { exact: true })).toContainText('original extra');
+    await expect(pressedCalls(page)).toHaveCount(0);
+    await clear(page).focus();
+    await page.keyboard.press('Space');
+    await expectSavedPrimary(page);
+    await expect(page.getByRole('alert')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Compare tape', exact: true })).toBeFocused();
+  });
+
+  test('valid-primary jumps and later row selections each update the restored call', async ({ page }) => {
+    await primaryInput(page).setInputFiles(file('bookmark-primary.tape', tape(primaryRows)));
+    await callAt(page, 1).click();
+    await comparisonInput(page).setInputFiles(file('bookmark-primary-drift.tape', tape([
+      { ...primaryRows[0], output: '{"different":true}' }, primaryRows[1]
+    ])));
+    await expect(page.locator('#compare-title')).toContainText('position 1');
+    await jump(page).focus();
+    await page.keyboard.press('Enter');
+    await expect(callAt(page, 0)).toBeFocused();
+    await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
+    for (const position of [0, 1]) {
+      if (position === 1) await callAt(page, 1).click();
+      await comparisonInput(page).setInputFiles(file('bookmark-extension.tape', tape([...primaryRows, extraRow])));
+      await expect(jump(page)).toBeVisible();
+      await expect(page.locator('#compare-title')).toContainText('position 3');
+      await jump(page).focus();
+      await page.keyboard.press('Enter');
+      await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+      await clear(page).click();
+      await expect(page.locator('#inspector h2')).toHaveText(primaryRows[position].name);
+      await expect(callAt(page, position)).toHaveAttribute('aria-pressed', 'true');
+      await expect(pressedCalls(page)).toHaveCount(1);
+    }
+  });
+
+  test('clear and replacement retain a valid-primary selection even when comparison lacks it', async ({ page }) => {
+    await primaryInput(page).setInputFiles(file('bookmark-primary.tape', tape(primaryRows)));
+    await callAt(page, 1).click();
+    for (const comparisonRows of [[primaryRows[0]], [], primaryRows]) {
+      const name = 'bookmark-replacement-' + comparisonRows.length + '.tape';
+      await comparisonInput(page).setInputFiles(file(name, tape(comparisonRows)));
+      await expect(page.locator('#compare-note')).toContainText(name);
+      await expectSavedPrimary(page);
+      if (comparisonRows.length < 2) {
+        await expect(page.locator('#inspector')).toContainText('This call is missing from the comparison tape.');
+      }
+    }
+    await clear(page).click();
+    await expectSavedPrimary(page);
+  });
+
+  for (const completion of ['clear', 'equal replacement']) {
+    for (const bookmark of [100, 300, 600]) {
+      const visibility = bookmark === 100 ? 'filtered-out' : bookmark === 300 ? 'off-page' : 'visible';
+      test(`${completion} preserves filtered pagination with a ${visibility} primary bookmark`, async ({ page }) => {
+        const rows = Array.from({ length: 751 }, (_, index) => ({
+          name: (index < 250 ? 'other.step.' : 'kept.step.') + index,
+          status: 'ERROR', output: 'java.io.IOException'
+        }));
+        await primaryInput(page).setInputFiles(file('bookmark-paginated.tape', tape(rows)));
+        for (let start = 0; start + 250 <= bookmark; start += 250) await nextPage(page).click();
+        await callAt(page, bookmark).click();
+        await comparisonInput(page).setInputFiles(file('bookmark-paginated-extension.tape', tape([...rows, extraRow])));
+        await expect(page.locator('#compare-title')).toContainText('position 752');
+        await jump(page).focus();
+        await page.keyboard.press('Enter');
+        await expectTimelinePage(page, 751, 751, 751);
+        await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+        await page.getByRole('searchbox').fill('kept.step.');
+        await page.getByLabel('Errors only', { exact: true }).check();
+        await nextPage(page).click();
+        await expectTimelinePage(page, 251, 500, 501, 500, 749);
+        await callAt(page, 601).focus();
+        const mountedRow = await callAt(page, 601).elementHandle();
+        if (completion === 'clear') {
+          await clear(page).focus();
+          await page.keyboard.press('Enter');
+          await expect(page.locator('#comparison')).toBeHidden();
+          await expect(page.getByRole('button', { name: 'Compare tape', exact: true })).toBeFocused();
+        } else {
+          await comparisonInput(page).setInputFiles(file('bookmark-paginated-equal.tape', tape(rows)));
+          await expect(page.locator('#compare-title')).toContainText('all 751 calls match');
+          await expect(callAt(page, 601)).toBeFocused();
+        }
+        await expect(page.getByRole('searchbox')).toHaveValue('kept.step.');
+        await expect(page.getByLabel('Errors only', { exact: true })).toBeChecked();
+        await expectTimelinePage(page, 251, 500, 501, 500, 749);
+        expect(await mountedRow.evaluate(element => element.isConnected), 'restoration does not remount timeline rows').toBe(true);
+        await expect(page.locator('#inspector h2')).toHaveText(rows[bookmark].name);
+        await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+        await expect(pressedCalls(page)).toHaveCount(bookmark === 600 ? 1 : 0);
+        if (bookmark === 600) {
+          await expect(callAt(page, 600)).toHaveAttribute('aria-pressed', 'true');
+          await expect(callAt(page, 600)).toHaveClass(/selected/);
+        } else {
+          // Reveal the saved call without selecting it, whether it was merely
+          // on another page or excluded by the still-active search.
+          if (bookmark === 100) {
+            await page.getByRole('searchbox').fill('');
+            await expectTimelinePage(page, 1, 250, 751);
+          } else {
+            await previousPage(page).click();
+            await expectTimelinePage(page, 1, 250, 501, 250, 499);
+          }
+          await expect(callAt(page, bookmark)).toHaveAttribute('aria-pressed', 'true');
+          await expect(page.locator('#inspector h2')).toHaveText(rows[bookmark].name);
+        }
+      });
+    }
+  }
+
+  test('a new primary resets the saved call and never reuses a previous tape bookmark', async ({ page }) => {
+    await inspectExtraCall(page);
+    const replacement = Array.from({ length: 3 }, (_, index) => ({ name: 'new.primary.' + index }));
+    await primaryInput(page).setInputFiles(file('bookmark-new-primary.tape', tape(replacement)));
+    await expect(page.locator('#comparison')).toBeHidden();
+    await expect(page.locator('#inspector h2')).toHaveText('new.primary.0');
+    await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
+    await comparisonInput(page).setInputFiles(file('bookmark-new-extension.tape', tape([...replacement, extraRow])));
+    await expect(page.locator('#compare-title')).toContainText('position 4');
+    await jump(page).click();
+    await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+    await clear(page).click();
+    await expect(page.locator('#inspector h2')).toHaveText('new.primary.0');
+    await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
+    await expect(callAt(page, 1)).toHaveAttribute('aria-pressed', 'false');
+    await expect(pressedCalls(page)).toHaveCount(1);
+  });
+
+  test('empty-primary clear and replacement remain meaningful without a stale bookmark', async ({ page }) => {
+    await inspectExtraCall(page);
+    await primaryInput(page).setInputFiles(file('bookmark-empty-primary.tape', tape([])));
+    await expectTimelinePage(page, 0, 0, 0);
+    await expect(page.locator('#timeline')).toContainText('This tape has no recorded calls.');
+    await expect(page.locator('#inspector')).toContainText('Select a recorded call to inspect its input and output.');
+    for (const completion of ['clear', 'equal replacement']) {
+      await comparisonInput(page).setInputFiles(file('bookmark-empty-extension.tape', tape([extraRow])));
+      await expect(jump(page)).toBeVisible();
+      await jump(page).focus();
+      await page.keyboard.press('Enter');
+      await expect(page.locator('#inspector')).toBeFocused();
+      await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+      await expect(page.getByLabel('comparison output', { exact: true })).toContainText('original extra');
+      if (completion === 'clear') {
+        await clear(page).click();
+        await expect(page.locator('#comparison')).toBeHidden();
+      } else {
+        await comparisonInput(page).setInputFiles(file('bookmark-empty-equal.tape', tape([])));
+        await expect(page.locator('#compare-title')).toContainText('all 0 calls match');
+        await expect(page.locator('#inspector')).toBeFocused();
+      }
+      await expectTimelinePage(page, 0, 0, 0);
+      await expect(page.locator('#inspector h2')).toHaveCount(0);
+      await expect(page.locator('#inspector')).toContainText('Select a recorded call to inspect its input and output.');
+      await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+      await expect(pressedCalls(page)).toHaveCount(0);
+    }
+    await primaryInput(page).setInputFiles(file('bookmark-after-empty.tape', tape([{ name: 'after.empty' }])));
+    await expect(page.locator('#inspector h2')).toHaveText('after.empty');
+    await comparisonInput(page).setInputFiles(file('bookmark-after-empty-extension.tape', tape([{ name: 'after.empty' }, extraRow])));
+    await expect(page.locator('#compare-title')).toContainText('position 2');
+    await jump(page).click();
+    await clear(page).click();
+    await expect(page.locator('#inspector h2')).toHaveText('after.empty');
+    await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
 test('canonical objects and large integers compare without precision loss', async ({ page }) => {
   const left = tape([{ input: '{"z":1.0,"a":9223372036854775807}', output: '{"b":2,"a":1}' }]);
   const equivalent = tape([{ input: '{"a":9223372036854775807,"z":1e0}', output: '{"a":1.0,"b":2}' }]);
