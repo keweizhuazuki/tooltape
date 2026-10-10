@@ -91,6 +91,17 @@ actual:   {"city":"Shanghai"}
 
 两次真实调用仅发生在录制阶段，回放阶段不增加真实调用；修改城市的场景用于演示回归定位。
 
+## 适合 CI 的报告
+
+```sh
+java -jar target/tooltape.jar validate --json fixtures/weather-retry-v2.tape
+java -jar target/tooltape.jar diff --json expected.tape actual.tape > report.json
+```
+
+JSON 报告采用版本化契约和明确退出码：**0** 有效或匹配，**1** 首处事件差异，**2** 无效输入、未关闭会话或不兼容的 v2 捕获策略。报告及错误不包含捕获值、工具名、文件路径或 JSON 字段名。旧 v1 比较会明确标注策略及完整性未验证。原有文本命令保持不变，可能显示录制内容。
+
+[报告结构、兼容规则及跨平台命令 →](docs/CLI_REPORTS.zh-CN.md)
+
 ## 接入业务代码
 
 ```java
@@ -144,11 +155,13 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 验证状态
 
-- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
+- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 62 个真实 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619451)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454)通过 25 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
+
+- 版本化、隐私优先的 JSON 校验/比较报告，并在全部 CI 平台测试真实子进程退出码
 
 - 安全加固：规范化凭据字段、限制指数展开和节点数、真实调用前预检容量、新 POSIX 文件仅属主可读写
 - 真实可选 kewei-ai-agent 接入，输出需审阅后启用，回放不执行真实回调
@@ -169,9 +182,10 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 下次升级
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
-2. 增加浏览器无障碍及 Firefox/WebKit 测试；目前真实浏览器范围为 Chromium 桌面及移动模拟。
-3. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
-4. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。
+2. 在保持报告 v1 契约兼容的前提下，增加可选的旧格式严格拒绝及多录制汇总。
+3. 增加浏览器无障碍及 Firefox/WebKit 测试；目前真实浏览器范围为 Chromium 桌面及移动模拟。
+4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
+5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。
 
 每次实质更新同步维护两种语言的升级记录。规划不等于已实现；模型和并行回放仍不在当前范围。
 

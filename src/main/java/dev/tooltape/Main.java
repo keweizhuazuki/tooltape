@@ -1,9 +1,10 @@
 package dev.tooltape;
 
+import java.io.PrintStream;
 import java.nio.file.*;
 import java.util.*;
 
-/** CLI exits: 0 success/equal; 1 divergence; 2 usage/invalid tape/I/O. */
+/** CLI exits: 0 success/equal; 1 divergence; 2 usage/invalid or incompatible tape/I/O. */
 public final class Main {
   public static final String VERSION = "0.2.0";
 
@@ -15,26 +16,32 @@ public final class Main {
   }
 
   public static int run(String[] args) {
+    return run(args, System.out, System.err);
+  }
+
+  /** Run a command with caller-owned output streams. Neither stream is closed. */
+  public static int run(String[] args, PrintStream out, PrintStream err) {
+    if (Arrays.asList(args).contains("--json")) return CliReport.run(args, out);
     try {
       if (args.length == 1 && args[0].equals("--version")) {
-        System.out.println("ToolTape " + VERSION + " (schemas 1, 2)");
+        out.println("ToolTape " + VERSION + " (schemas 1, 2)");
         return 0;
       }
       if (args.length == 2 && args[0].equals("inspect")) {
         Tape tape = Tape.read(Path.of(args[1]));
-        System.out.println(
+        out.println(
             "ToolTape v" + tape.version() + " · " + tape.events().size() + " serial events");
         if (tape.metadata() != null)
-          System.out.println(
+          out.println(
               "Session: "
                   + (tape.complete() ? "CLOSED" : "INCOMPLETE")
                   + " · source="
                   + tape.metadata().source()
                   + " · policy="
                   + tape.metadata().policyId());
-        else System.out.println("Legacy v1: policy and completion are unverified");
+        else out.println("Legacy v1: policy and completion are unverified");
         for (Tape.Event e : tape.events())
-          System.out.printf(
+          out.printf(
               Locale.ROOT,
               "%03d  %-5s %-24s %.3f ms%n     in  %s%n     out %s%n",
               e.index(),
@@ -47,14 +54,14 @@ public final class Main {
       }
       if (args.length == 3 && args[0].equals("diff")) {
         Optional<String> diff = Tape.read(Path.of(args[1])).diff(Tape.read(Path.of(args[2])));
-        System.out.println(diff.orElse("MATCH: all events equal (timing ignored)"));
+        out.println(diff.orElse("MATCH: all events equal (timing ignored)"));
         return diff.isPresent() ? 1 : 0;
       }
       if (args.length == 2 && args[0].equals("validate")) {
         Tape tape = Tape.read(Path.of(args[1]));
         if (tape.version() == 2 && !tape.complete())
           throw new IllegalArgumentException("Incomplete v2 tape: no verified END marker");
-        System.out.println(
+        out.println(
             "VALID: "
                 + tape.events().size()
                 + " events, schema v"
@@ -64,12 +71,12 @@ public final class Main {
                     : " (closed session)"));
         return 0;
       }
-      System.err.println(
-          "Usage: java -jar tooltape.jar inspect <file> | validate <file> | diff <expected>"
-              + " <actual>");
+      err.println(
+          "Usage: java -jar tooltape.jar inspect <file> | validate [--json] <file> | diff"
+              + " [--json] <expected> <actual>");
       return 2;
     } catch (Exception e) {
-      System.err.println("ToolTape: " + e.getMessage());
+      err.println("ToolTape: " + e.getMessage());
       return 2;
     }
   }
