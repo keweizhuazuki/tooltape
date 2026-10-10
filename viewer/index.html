@@ -28,8 +28,8 @@
       <div><div class="eyebrow">A little clarity for your agents</div><h1 id="page-title">Your tools. <span>In context.</span></h1><p class="intro">Inspect a recorded run. Find the failure. See exactly where two runs drift.</p></div>
       <div class="hero-actions"><button class="btn" id="compare-button" disabled><span class="plus" aria-hidden="true">↔</span>Compare tape</button><button class="btn btn-primary" id="open-button"><span class="plus" aria-hidden="true">+</span>Open tape</button></div>
     </section>
-    <input class="file-input" type="file" id="open-file" accept=".tape,text/plain" aria-label="Open primary tape">
-    <input class="file-input" type="file" id="compare-file" accept=".tape,text/plain" aria-label="Open comparison tape">
+    <input class="file-input" type="file" id="open-file" accept=".tape,text/plain" aria-label="Open primary tape" tabindex="-1">
+    <input class="file-input" type="file" id="compare-file" accept=".tape,text/plain" aria-label="Open comparison tape" tabindex="-1">
     <div class="notice" id="notice" role="alert" hidden></div>
     <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
     <section class="recording" id="recording" aria-label="Recording details" hidden>
@@ -416,7 +416,12 @@ function renderTimeline() {
   if (matches.length > shown.length) {
     const li = el('li');
     const more = el('button', 'btn btn-small more', 'Show next ' + Math.min(250, matches.length - shown.length) + ' calls');
-    more.addEventListener('click', () => { state.limit += 250; renderTimeline(); });
+    more.addEventListener('click', () => {
+      const nextPosition = matches[shown.length].position;
+      state.limit += 250; renderTimeline();
+      const next = $('timeline').querySelector('[data-position="' + nextPosition + '"]');
+      if (next) { next.scrollIntoView({ block: 'nearest' }); next.focus({ preventScroll: true }); }
+    });
     li.append(more); fragment.append(li);
   }
   $('timeline').replaceChildren(fragment);
@@ -559,7 +564,12 @@ $('open-file').addEventListener('change', event => { const file = event.target.f
 $('compare-file').addEventListener('change', event => { const file = event.target.files[0]; event.target.value = ''; readFile(file, true); });
 $('search').addEventListener('input', () => { state.limit = 250; renderTimeline(); });
 $('errors-only').addEventListener('change', () => { state.limit = 250; renderTimeline(); });
-$('clear-compare').addEventListener('click', () => { state.compareVersion++; state.comparison = null; renderComparison(); renderInspector(); announce('Comparison cleared.'); });
+$('clear-compare').addEventListener('click', () => {
+  const restoreFocus = document.activeElement === $('clear-compare');
+  state.compareVersion++; state.comparison = null;
+  renderComparison(); renderInspector(); announce('Comparison cleared.');
+  if (restoreFocus) $('compare-button').focus();
+});
 $('load-example').addEventListener('click', () => { state.openVersion++; clearError(); loadPrimary(parseTape(exampleTape(), 'example · weather-retry.tape')); });
 $('jump-divergence').addEventListener('click', () => {
   if (!state.difference) return;
@@ -571,7 +581,22 @@ $('jump-divergence').addEventListener('click', () => {
   else { $('inspector').tabIndex = -1; $('inspector').focus(); }
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') { $('search').value = ''; $('errors-only').checked = false; state.limit = 250; renderTimeline(); }
+  if (event.key !== 'Escape' || (!$('search').value && !$('errors-only').checked)) return;
+  const focusedCall = Array.from($('timeline').querySelectorAll('button[data-position]')).find(button => button === document.activeElement);
+  const more = $('timeline').querySelector('.more');
+  const restoreMoreFocus = more && more === document.activeElement;
+  const focusedPosition = focusedCall ? Number(focusedCall.dataset.position) : -1;
+  $('search').value = ''; $('errors-only').checked = false;
+  // Keep a selected or focused call beyond the first page reachable after reset.
+  state.limit = Math.max(250, state.selected + 1, focusedPosition + 1);
+  renderTimeline();
+  if (focusedCall) {
+    const button = $('timeline').querySelector('[data-position="' + focusedPosition + '"]');
+    if (button) { button.scrollIntoView({ block: 'nearest' }); button.focus({ preventScroll: true }); }
+  } else if (restoreMoreFocus) {
+    const next = $('timeline').querySelector('.more') || $('timeline').querySelector('button[data-position]') || $('search');
+    next.focus();
+  }
 });
 let dragDepth = 0;
 document.addEventListener('dragenter', event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); dragDepth++; document.body.classList.add('drop-active'); } });
