@@ -1,0 +1,19 @@
+{
+  "screenshot": "viewer-session.png",
+  "kind": "actual Chromium rendering, no image compositing",
+  "viewer": "viewer/index.html",
+  "viewerSha256": "337fc453556252963212eafc4d59ca09d32fbd09dedc41acb13c2f330116de26",
+  "fixture": "fixtures/weather-retry-v2.tape, unchanged, showing session closure and recorded provenance",
+  "sourceFixture": "fixtures/weather-retry-v2.tape",
+  "sourceFixtureSha256": "8fc29b79e6259a0b6be5fee5e4a48128f4c4f1e5fc452f570cb40083d878c7e2",
+  "commit": "911f62b45904c719a8bddaf6612cd59e2cfcf1ca",
+  "workflowRun": "38033998529",
+  "playwright": "1.64.0",
+  "browser": "156.0.8078.4",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "deviceScaleFactor": 1
+}

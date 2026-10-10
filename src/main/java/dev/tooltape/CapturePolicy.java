@@ -1,5 +1,8 @@
 package dev.tooltape;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -23,6 +26,26 @@ public final class CapturePolicy {
 
   public static CapturePolicy allow(Set<String> inputFields, Set<String> outputFields) {
     return new CapturePolicy(inputFields, outputFields);
+  }
+
+  /** Stable fingerprint of the capture semantics and sorted allowlists, never their values. */
+  public String identifier() {
+    String descriptor =
+        Json.write(
+            Map.of(
+                "algorithm",
+                "scalar-v1",
+                "inputs",
+                inputs.stream().sorted().toList(),
+                "outputs",
+                outputs.stream().sorted().toList()));
+    try {
+      byte[] digest =
+          MessageDigest.getInstance("SHA-256").digest(descriptor.getBytes(StandardCharsets.UTF_8));
+      return "sha256:" + HexFormat.of().formatHex(digest);
+    } catch (NoSuchAlgorithmException impossible) {
+      throw new IllegalStateException("Required SHA-256 unavailable", impossible);
+    }
   }
 
   public Map<String, Object> input(Map<String, Object> value) {

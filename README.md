@@ -7,13 +7,32 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+[![Regression CI](https://github.com/keweizhuazuki/tooltape/actions/workflows/ci.yml/badge.svg)](https://github.com/keweizhuazuki/tooltape/actions/workflows/ci.yml) [![Browser QA](https://github.com/keweizhuazuki/tooltape/actions/workflows/browser.yml/badge.svg)](https://github.com/keweizhuazuki/tooltape/actions/workflows/browser.yml)
+
 [Quick start](#quick-start) · [API](#use-it-in-your-code) · [Security](SECURITY.md) · [Format](docs/FORMAT.md) · [Roadmap](#next-upgrade)
 
 </div>
 
 ToolTape turns a Java tool boundary into a reusable test fixture. Record the order, selected arguments, results and exception types once; rerun your orchestration against an offline stub that fails at the first unexpected tool call or argument. No server, account, API key or runtime dependency.
 
-> **Scope:** v0.1 is for serial tool orchestration. It does not record/replay an LLM, stream tokens, reproduce concurrency, or sandbox your Java process. Route external effects through `Tool`. The default policy captures no input/output fields; explicitly allow safe scalar fields.
+> **Scope:** v0.2 is for serial tool orchestration. It does not record/replay an LLM, stream tokens, reproduce concurrency, or sandbox your Java process. Route external effects through `Tool`. The default policy captures no input/output fields; explicitly allow safe scalar fields.
+
+## A real recording, in context
+
+![ToolTape v2 session timeline and recorded tool failure](docs/images/viewer-session.png)
+
+Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed all 25 active checks.
+
+<details>
+<summary>See the first-divergence comparison and mobile layout</summary>
+
+![First differing tool result in the offline comparison viewer](docs/images/viewer-diff.png)
+
+<img src="docs/images/viewer-mobile.png" alt="ToolTape viewer in 390px Chromium mobile emulation" width="390">
+
+The mobile image is browser emulation, not a physical-device claim. PNGs are direct browser screenshots with no compositing.
+
+</details>
 
 ## Why use it?
 
@@ -24,9 +43,24 @@ ToolTape turns a Java tool boundary into a reusable test fixture. Record the ord
 
 ## Quick start
 
-Install a **full JDK 17 or 21** and Git. These are source builds; no Maven Central artifact or downloadable release is claimed yet.
+### Prebuilt CLI (Java 17+)
 
-### Linux / macOS
+The v0.2.0 prerelease includes a JAR and SHA-256 checksums; it is not published on Maven Central.
+
+```sh
+gh release download v0.2.0 --repo keweizhuazuki/tooltape --pattern tooltape-0.2.0.jar --pattern SHA256SUMS
+sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
+java -jar tooltape-0.2.0.jar --version
+java -jar tooltape-0.2.0.jar inspect path/to/your.tape
+```
+
+On Windows, compare `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` with the value in `SHA256SUMS` before running the JAR. [Release assets and notes](https://github.com/keweizhuazuki/tooltape/releases/tag/v0.2.0).
+
+### Build from source
+
+Install a **full JDK 17 or 21** and Git. The local viewer is included in the clone.
+
+#### Linux / macOS
 
 ```sh
 git clone https://github.com/keweizhuazuki/tooltape.git
@@ -36,7 +70,7 @@ java -cp target/tooltape.jar:target/example-classes RetryRegression
 java -jar target/tooltape.jar inspect target/weather.tape
 ```
 
-### Windows PowerShell
+#### Windows PowerShell
 
 ```powershell
 git clone https://github.com/keweizhuazuki/tooltape.git
@@ -52,7 +86,7 @@ The demo creates `target/weather.tape` with CREATE_NEW. To rerun, choose a fresh
 
 ```text
 PASS: recorded timeout + retry, replayed offline; live calls=2
-First divergence at event 0: arguments
+First divergence at event 0: arguments at /city
 expected: {"city":"Hangzhou"}
 actual:   {"city":"Shanghai"}
 ```
@@ -79,6 +113,8 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 
 `Tool` accepts and returns `Map<String,Object>` of JSON-compatible data. Recorded output is sanitized, so allow the fields your workflow requires. Only explicitly allowed top-level scalars are captured; nested values become `[REDACTED]`. Credential-like field names are always excluded. Excluded input fields cannot be regression-checked.
 
+New recordings are schema v2. They store a SHA-256 identity of the allowlist configuration and an optional static source label (`new Recorder(path, tool, policy, "my-workflow")`). Replay rejects policy changes and recordings without a valid closed-session marker before executing your workflow. Closing a recording is not proof of business success. Existing v1 fixtures remain readable with policy/completeness checks unavailable.
+
 Recorded exceptions use `Replay.RecordedToolException.originalType()`, not the original Java subclass. Normalize errors in a domain adapter when business code branches on exception type. The executable [retry example](examples/RetryRegression.java) shows this explicitly.
 
 ### JUnit
@@ -87,7 +123,7 @@ Recorded exceptions use `Replay.RecordedToolException.originalType()`, not the o
 mvn test
 ```
 
-[RegressionJUnitTest](src/test/java/dev/tooltape/RegressionJUnitTest.java) contains a checked-in failure fixture, complete replay assertion and changed-argument failure. `mvn install` installs the library locally for another Maven project; coordinates are `dev.tooltape:tooltape:0.1.0-SNAPSHOT` and are **not** remotely published.
+[RegressionJUnitTest](src/test/java/dev/tooltape/RegressionJUnitTest.java) contains a checked-in failure fixture, complete replay assertion and changed-argument failure. `mvn install` installs the library locally for another Maven project; coordinates are `dev.tooltape:tooltape:0.2.0` and are **not** remotely published.
 
 [Spring AI / kewei-ai-agent adapter guide →](docs/SPRING_AI.md)
 
@@ -99,37 +135,44 @@ java -jar target/tooltape.jar inspect fixtures/weather-retry.tape
 java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.tape
 ```
 
-Exit codes: `0` valid/equal, `1` first semantic difference, `2` malformed file, I/O or usage error. Timing is shown but ignored in comparisons.
+Exit codes: `0` valid/equal, `1` first semantic difference, `2` malformed file, I/O or usage error. Timing and metadata are shown but ignored in event comparisons. Validate first; a semantic diff does not establish completeness. Input/output differences include a JSON pointer such as `/city`.
 
-Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.tape`, filter failures, inspect arguments/results, or load a second tape to find the first difference. The viewer uses local File APIs and blocks network connections with CSP. On mobile, viewing the repository is possible but local file selection/browser behavior has not been validated; no mobile app is claimed.
+Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.tape`, filter failures, inspect arguments/results, or load a second tape to find the first difference. The viewer uses local File APIs and blocks network connections with CSP. Desktop Chromium and 390px Chromium mobile emulation are tested in CI. Physical phones, Safari and native OS file-picker dialogs are not validated; no mobile app is claimed.
 
 ## Where it fits
 
-[Langfuse](https://github.com/langfuse/langfuse) provides LLM observability and evaluation; [Promptfoo](https://github.com/promptfoo/promptfoo) provides prompt/agent testing and evaluation workflows; [WireMock](https://github.com/wiremock/wiremock) mocks HTTP services. ToolTape is a small Java tool-boundary fixture/replay library. It does not replace these projects, claim a novel category, or import their formats in v0.1.
+[Langfuse](https://github.com/langfuse/langfuse) provides LLM observability and evaluation; [Promptfoo](https://github.com/promptfoo/promptfoo) provides prompt/agent testing and evaluation workflows; [WireMock](https://github.com/wiremock/wiremock) mocks HTTP services. ToolTape is a small Java tool-boundary fixture/replay library. It does not replace these projects, claim a novel category, or import their formats in v0.2.
 
 ## Verification
 
-- Local Linux/JDK 21: **45 dependency-free acceptance checks + 3 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38032949639): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 78 parser/canonicalization checks and 23 DOM-model interaction checks passed. Real-browser rendering and screenshots remain unverified because the available browser launch was blocked; no simulated screenshot is presented.
+- Local Linux/JDK 21: **45 dependency-free acceptance checks + 13 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998596): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- Viewer: 170 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
-## Completed in v0.1
+## Completed in v0.2
 
-- Versioned tape reader/writer, canonical JSON and bounded file parsing
-- Privacy-first scalar projection, credential-name exclusions, message-free exception records
-- Serial recorder, offline replay, missing/extra-call detection, first divergence
-- CLI inspect/validate/diff, JUnit fixture, executable retry regression
-- Local timeline viewer, cross-platform build scripts and verified CI matrix
-- Fixed Windows fixture line endings; English default README with a separate Chinese guide
+- Policy-bound v2 recording sessions, explicit source labels and close markers; incomplete/mismatched-policy replay fails before calls
+- Backward-compatible v1 reading, clear legacy/incomplete states in CLI and viewer
+- RFC 6901 JSON-pointer locations for the first differing input/output
+- Real desktop/mobile Chromium tests and screenshot provenance generated in CI
+- Deterministic JAR timestamps, rebuild byte-comparison and checksummed prerelease artifacts
+- Pinned-source integration route for the actual Spring AI project; no fake Maven Central coordinates
+
+### v0.1 foundation
+
+- Zero-dependency serial recorder/replayer with privacy-first scalar capture
+- Strict tape parsing, CLI inspect/validate/diff, JUnit and runnable retry fixtures
+- Local timeline viewer and verified Linux/macOS/Windows × Java 17/21 matrix
+- Windows fixture line-ending fix and separate English/Chinese documentation
 
 ## Next upgrade
 
-1. Compile and integration-test a dedicated Spring AI ToolCallback adapter against pinned framework versions; preserve ToolContext behavior and define error-string projection.
-2. Persist a capture-policy identifier and fixture provenance; warn about policy drift and add an explicit completion marker without breaking v1 readers.
-3. Add precise JSON-path differences, viewer accessibility/browser CI and reproducible release archives with checksums.
-4. Validate with a second real orchestration project before expanding into model or parallel replay.
+1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
+2. Add browser accessibility checks and Firefox/WebKit coverage; current real-browser scope is Chromium desktop and mobile emulation.
+3. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
+4. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.
 
-Maintain this completed/next section with every meaningful release. Roadmap items are not implemented features.
+Keep completed/next sections synchronized in English and Chinese. These future items are not shipped features. Model and parallel replay remain out of scope.
 
 ## License
 

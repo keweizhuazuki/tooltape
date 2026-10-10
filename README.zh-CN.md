@@ -11,7 +11,24 @@
 
 ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调用顺序、明确允许保存的参数、结果及异常类型，再用离线替身执行编排逻辑；调用顺序或参数首次偏离时立即报错。无需服务器、账户、API Key 或运行时依赖。
 
-> v0.1 专注串行工具编排，不录制或回放模型、不处理流式输出或并行调用，也不隔离整个 Java 进程。外部副作用必须经由 `Tool` 边界；默认不保存输入输出字段，需明确允许安全的标量字段。
+> v0.2 专注串行工具编排，不录制或回放模型、不处理流式输出或并行调用，也不隔离整个 Java 进程。外部副作用必须经由 `Tool` 边界；默认不保存输入输出字段，需明确允许安全的标量字段。
+
+## 真实录制，清晰呈现
+
+![ToolTape v2 会话时间线与已录制的工具异常](docs/images/viewer-session.png)
+
+图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529)已通过全部 25 项有效检查。
+
+<details>
+<summary>查看首次差异比较与移动布局</summary>
+
+![离线查看器定位工具返回结果的首次差异](docs/images/viewer-diff.png)
+
+<img src="docs/images/viewer-mobile.png" alt="390px Chromium 移动模拟中的 ToolTape 查看器" width="390">
+
+移动截图来自浏览器模拟，不代表真机验证。PNG 为浏览器直接输出，未进行图像合成。
+
+</details>
 
 ## 解决什么问题？
 
@@ -22,9 +39,24 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 ## 快速开始
 
-安装完整 **JDK 17 或 21** 与 Git。目前从源码构建，尚未发布 Maven Central 制品或独立安装包。
+### 预构建 CLI（Java 17+）
 
-### Linux / macOS
+v0.2.0 预发布提供 JAR 和 SHA-256 校验文件；尚未发布到 Maven Central。
+
+```sh
+gh release download v0.2.0 --repo keweizhuazuki/tooltape --pattern tooltape-0.2.0.jar --pattern SHA256SUMS
+sha256sum -c SHA256SUMS
+java -jar tooltape-0.2.0.jar --version
+java -jar tooltape-0.2.0.jar inspect path/to/your.tape
+```
+
+macOS 使用 `shasum -a 256 -c SHA256SUMS`；Windows 将 `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` 与 SHA256SUMS 中的值比较，一致后再执行。[发布说明与下载](https://github.com/keweizhuazuki/tooltape/releases/tag/v0.2.0)。
+
+### 从源码构建
+
+安装完整 **JDK 17 或 21** 与 Git。克隆目录同时包含本地查看器。
+
+#### Linux / macOS
 
 ```sh
 git clone https://github.com/keweizhuazuki/tooltape.git
@@ -34,7 +66,7 @@ java -cp target/tooltape.jar:target/example-classes RetryRegression
 java -jar target/tooltape.jar inspect target/weather.tape
 ```
 
-### Windows PowerShell
+#### Windows PowerShell
 
 ```powershell
 git clone https://github.com/keweizhuazuki/tooltape.git
@@ -50,7 +82,7 @@ java -jar target/tooltape.jar inspect target/weather.tape
 
 ```text
 PASS: recorded timeout + retry, replayed offline; live calls=2
-First divergence at event 0: arguments
+First divergence at event 0: arguments at /city
 expected: {"city":"Hangzhou"}
 actual:   {"city":"Shanghai"}
 ```
@@ -72,6 +104,8 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 
 `Tool` 输入输出为 JSON 兼容的 `Map<String,Object>`。回放返回脱敏后的结果，因此需允许业务逻辑依赖的字段。只保存明确允许的顶层标量；嵌套对象和数组替换为 `[REDACTED]`，凭据类字段名始终排除。未保存的输入字段无法参与回归校验。
 
+新录制采用 v2 格式，保存允许字段配置的 SHA-256 标识及可选的静态来源标签（`new Recorder(path, tool, policy, "my-workflow")`）。回放会在任何调用前拒绝策略变化或缺少有效关闭标记的数据。关闭录制不代表业务成功；旧 v1 数据仍可读取，但无法校验策略与完整性。
+
 录制异常通过 `Replay.RecordedToolException.originalType()` 提供原类型，不会实例化任意异常类。若业务逻辑依赖异常子类，请在领域适配器中统一错误类型；[可执行重试示例](examples/RetryRegression.java)对此有明确处理。
 
 ### JUnit 自动回归
@@ -80,7 +114,7 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 mvn test
 ```
 
-[JUnit 示例](src/test/java/dev/tooltape/RegressionJUnitTest.java)覆盖已提交的故障数据、完整回放断言和参数变化。运行 `mvn install` 后可在其他 Maven 项目中使用本地坐标 `dev.tooltape:tooltape:0.1.0-SNAPSHOT`；该坐标尚未远程发布。
+[JUnit 示例](src/test/java/dev/tooltape/RegressionJUnitTest.java)覆盖已提交的故障数据、完整回放断言和参数变化。运行 `mvn install` 后可在其他 Maven 项目中使用本地坐标 `dev.tooltape:tooltape:0.2.0`；该坐标尚未远程发布。
 
 [Spring AI / kewei-ai-agent 接入设计](docs/SPRING_AI.md)仅为设计说明，尚无编译验证的专用适配器。
 
@@ -92,9 +126,9 @@ java -jar target/tooltape.jar inspect fixtures/weather-retry.tape
 java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.tape
 ```
 
-退出码：`0` 有效或相同，`1` 首次语义差异，`2` 文件格式、I/O 或用法错误。耗时仅展示，不参与比较。
+退出码：`0` 有效或相同，`1` 首次语义差异，`2` 文件格式、I/O 或用法错误。耗时与元数据仅展示，不参与事件比较。应先执行 validate；语义相同不等于录制完整。输入输出差异会附带 `/city` 等 JSON 指针。
 
-本地打开 [viewer/index.html](viewer/index.html)，选择 `.tape` 文件，即可筛选失败、查看参数结果，或载入第二份文件定位差异。界面使用本地 File API，并通过 CSP 禁止网络连接。移动端文件选择尚未验证，没有独立移动应用。浏览器截图尚未取得，不以模拟图片替代真实截图。
+本地打开 [viewer/index.html](viewer/index.html)，选择 `.tape` 文件，即可筛选失败、查看参数结果，或载入第二份文件定位差异。界面使用本地 File API，并通过 CSP 禁止网络连接。CI 已验证桌面 Chromium 与 390px 移动模拟；真实手机、Safari 及原生文件选择对话框尚未验证，也没有独立移动应用。截图来自真实浏览器，不使用模拟图。
 
 ## 安全边界
 
@@ -104,31 +138,38 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 与现有工具的关系
 
-[Langfuse](https://github.com/langfuse/langfuse)面向 LLM 可观测与评估，[Promptfoo](https://github.com/promptfoo/promptfoo)面向提示词和 Agent 测试，[WireMock](https://github.com/wiremock/wiremock)提供 HTTP 模拟。ToolTape 聚焦 Java 工具边界测试数据与离线回放，不替代这些项目、不声称首创，v0.1 也不支持导入它们的格式。
+[Langfuse](https://github.com/langfuse/langfuse)面向 LLM 可观测与评估，[Promptfoo](https://github.com/promptfoo/promptfoo)面向提示词和 Agent 测试，[WireMock](https://github.com/wiremock/wiremock)提供 HTTP 模拟。ToolTape 聚焦 Java 工具边界测试数据与离线回放，不替代这些项目、不声称首创，v0.2 也不支持导入它们的格式。
 
 ## 验证状态
 
-- 本地 Linux/JDK 21：45 项无依赖检查及 3 项 JUnit 测试通过；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
-- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38032949639)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
-- 界面：78 项解析与规范化检查、23 项 DOM 模型交互检查通过。浏览器启动受限，截图及真实浏览器渲染仍未验证，不使用模拟截图。
+- 本地 Linux/JDK 21：45 项无依赖检查及 13 项 JUnit 测试通过；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
+- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998596)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
+- 界面：170 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529)通过 25 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
 
-## 本次已完成（v0.1）
+## 本次已完成（v0.2）
 
-- 版本化格式、规范 JSON、文件大小限制及严格输入校验
-- 默认最小记录、凭据字段排除、不保存异常消息
-- 串行录制、离线回放、缺失与额外调用检测、首次差异
-- CLI、JUnit 数据样例与可执行重试回归
-- 本地时间线界面、跨平台构建脚本与已验证的 CI 矩阵
-- 修复 Windows 测试数据换行问题；英文默认 README 与独立中文说明
+- v2 策略绑定、来源标签与关闭标记；不完整或策略不同的数据在回放前直接拒绝
+- 兼容旧 v1 数据，CLI 和查看器明确标记旧版及未完整关闭状态
+- 以 RFC 6901 JSON 指针定位首个输入输出差异
+- 通过 CI 运行真实 Chromium 桌面与移动模拟测试，并生成带来源信息的截图
+- 固定 JAR 时间戳，二次构建逐字节对比，预发布附带校验文件
+- 真实 Spring AI 项目的固定源码接入方式，不虚构 Maven Central 坐标
+
+### v0.1 基础能力
+
+- 零依赖串行录制回放、默认最小字段捕获
+- 严格格式解析、CLI、JUnit 与可执行重试数据
+- 本地时间线与已验证的 Linux、macOS、Windows × Java 17/21 矩阵
+- Windows 换行修复，独立英文和中文说明
 
 ## 下次升级
 
-1. 对固定 Spring AI 版本编译并集成测试专用适配器，保留 ToolContext，定义错误字符串映射。
-2. 增加捕获策略标识及数据来源，提示策略漂移，设计兼容演进的完成标记。
-3. 增加精确 JSON 路径差异、界面无障碍及浏览器 CI、可复现发布包和校验值。
-4. 接入第二个真实编排项目后，再评估模型或并行回放。
+1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
+2. 增加浏览器无障碍及 Firefox/WebKit 测试；目前真实浏览器范围为 Chromium 桌面及移动模拟。
+3. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
+4. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。
 
-每次实质更新同步维护英文和中文的“已完成／下次升级”记录。规划不等于已实现功能。
+每次实质更新同步维护两种语言的升级记录。规划不等于已实现；模型和并行回放仍不在当前范围。
 
 ## 许可
 

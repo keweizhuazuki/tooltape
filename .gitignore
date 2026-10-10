@@ -1,2 +1,3 @@
 target/
 *.local.tape
+/viewer/node_modules/

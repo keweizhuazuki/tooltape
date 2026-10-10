@@ -69,6 +69,36 @@ public final class Json {
     return (Map<String, Object>) v;
   }
 
+  /** First differing RFC 6901 JSON pointer; the empty pointer denotes the root. */
+  public static Optional<String> firstDifference(Object expected, Object actual) {
+    return difference(expected, actual, "");
+  }
+
+  private static Optional<String> difference(Object expected, Object actual, String path) {
+    if (expected instanceof Map<?, ?> a && actual instanceof Map<?, ?> b) {
+      TreeSet<String> keys = new TreeSet<>();
+      a.keySet().forEach(k -> keys.add((String) k));
+      b.keySet().forEach(k -> keys.add((String) k));
+      for (String key : keys) {
+        String child = path + "/" + key.replace("~", "~0").replace("/", "~1");
+        if (!a.containsKey(key) || !b.containsKey(key)) return Optional.of(child);
+        Optional<String> result = difference(a.get(key), b.get(key), child);
+        if (result.isPresent()) return result;
+      }
+      return Optional.empty();
+    }
+    if (expected instanceof List<?> a && actual instanceof List<?> b) {
+      for (int i = 0; i < Math.min(a.size(), b.size()); i++) {
+        Optional<String> result = difference(a.get(i), b.get(i), path + "/" + i);
+        if (result.isPresent()) return result;
+      }
+      return a.size() == b.size()
+          ? Optional.empty()
+          : Optional.of(path + "/" + Math.min(a.size(), b.size()));
+    }
+    return write(expected).equals(write(actual)) ? Optional.empty() : Optional.of(path);
+  }
+
   private static final class Parser {
     final String s;
     int i;

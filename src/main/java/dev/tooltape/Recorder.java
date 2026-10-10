@@ -14,16 +14,34 @@ public final class Recorder implements Tool, AutoCloseable {
   private final AtomicBoolean busy = new AtomicBoolean();
   private int index;
   private boolean closed, poisoned;
-  private int bytes = Tape.HEADER.length() + 1;
+  private int bytes;
 
   public Recorder(Path path, Tool delegate, CapturePolicy policy) throws IOException {
+    this(path, delegate, policy, "unspecified");
+  }
+
+  /** Source is an explicitly supplied static provenance label, not user content or a file path. */
+  public Recorder(Path path, Tool delegate, CapturePolicy policy, String source)
+      throws IOException {
     this.delegate = Objects.requireNonNull(delegate);
     this.policy = Objects.requireNonNull(policy);
+    Tape.Metadata metadata = new Tape.Metadata(policy.identifier(), source);
+    String preamble = Tape.HEADER_V2 + "\n" + metadata.line() + "\n";
     writer =
         Files.newBufferedWriter(
             path, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-    writer.write(Tape.HEADER + "\n");
-    writer.flush();
+    try {
+      writer.write(preamble);
+      writer.flush();
+      bytes = preamble.getBytes(StandardCharsets.UTF_8).length;
+    } catch (IOException failure) {
+      try {
+        writer.close();
+      } catch (IOException closeFailure) {
+        failure.addSuppressed(closeFailure);
+      }
+      throw failure;
+    }
   }
 
   @Override
@@ -53,6 +71,10 @@ public final class Recorder implements Tool, AutoCloseable {
           original.addSuppressed(writeFailure);
         }
         throw original;
+      } catch (Error fatal) {
+        // An unrecorded fatal call must never leave a session that looks replay-complete.
+        poisoned = true;
+        throw fatal;
       }
       try {
         append(
@@ -76,7 +98,7 @@ public final class Recorder implements Tool, AutoCloseable {
   private void append(Tape.Event event) throws IOException {
     String line = event.line() + "\n";
     int size = line.getBytes(StandardCharsets.UTF_8).length;
-    if ((long) bytes + size > Tape.MAX_BYTES)
+    if ((long) bytes + size + 15 > Tape.MAX_BYTES)
       throw new IOException("Tape exceeds 16 MiB; recording stopped after tool execution");
     writer.write(line);
     writer.flush();
@@ -89,8 +111,17 @@ public final class Recorder implements Tool, AutoCloseable {
     if (!busy.compareAndSet(false, true))
       throw new IllegalStateException("Cannot close during a call");
     try {
+      if (closed) return;
       closed = true;
-      writer.close();
+      try {
+        if (!poisoned) {
+          writer.write("END\t" + index + "\n");
+          writer.flush();
+        }
+      } finally {
+        writer.close();
+      }
+
     } finally {
       busy.set(false);
     }
