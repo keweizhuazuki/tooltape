@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="dark">
+  <title>ToolTape · Offline trace viewer</title>
+  <style>
+    :root{--bg:#0b0e11;--panel:#12171b;--panel2:#181e23;--line:#2a3238;--ink:#ecf1ee;--muted:#95a29e;--faint:#65716e;--lime:#c4ef91;--lime-dim:#243223;--red:#ff9b94;--red-dim:#35211f;--mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;--sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.4}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--lime);outline-offset:4px}button{color:inherit}.shell{max-width:1400px;margin:auto;padding:0 48px}.topbar{height:87px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.brand{display:flex;gap:12px;align-items:center;font-size:22px;font-weight:700;letter-spacing:-.9px}.logo{width:32px;height:26px;border:2px solid var(--lime);border-radius:8px;position:relative;display:flex;justify-content:space-around;align-items:center}.logo:before,.logo:after{content:"";width:6px;height:6px;border:2px solid var(--lime);border-radius:50%}.version{font:11px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:4px 6px;letter-spacing:0}.local{display:flex;align-items:center;gap:9px;font:10px var(--mono);letter-spacing:1.7px;color:var(--muted)}.dot{width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px #c4ef9130}.hero{padding:43px 0 33px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px}.eyebrow{font:10px/1.4 var(--mono);color:var(--lime);letter-spacing:2px;text-transform:uppercase}h1{font-size:43px;line-height:1.14;font-weight:550;letter-spacing:-1.7px;margin:10px 0 12px}h1 span{color:var(--muted)}.intro{color:var(--muted);max-width:600px;margin:0;font-size:14px}.hero-actions{display:flex;gap:10px;flex-shrink:0;padding-bottom:3px}.btn{border:1px solid var(--line);background:var(--panel2);padding:11px 17px;border-radius:7px;font-size:12px;font-weight:600;white-space:nowrap}.btn:hover{background:#232b30;border-color:#46514f}.btn-primary{background:var(--lime);color:#172011;border-color:var(--lime)}.btn-primary:hover{background:#d3f5ac;border-color:#d3f5ac}.btn-text{background:transparent;border:0;color:var(--muted);font-size:12px;padding:6px 0}.btn-text:hover{color:var(--ink)}.btn-small{padding:7px 10px;font-size:11px}.plus{font-size:16px;margin-right:8px;font-weight:400}.file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.notice{background:var(--red-dim);border:1px solid #663b36;border-radius:8px;padding:12px 16px;color:#ffd1cc;margin-bottom:18px;white-space:pre-wrap;overflow-wrap:anywhere}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);margin-bottom:24px}.stat{padding:20px 24px;border-right:1px solid var(--line)}.stat:last-child{border-right:0}.stat-label{color:var(--muted);font-size:11px;margin-bottom:9px;display:flex;align-items:center;gap:7px}.stat-number{font:28px/1.2 var(--mono);letter-spacing:-1px}.stat-unit{font-size:13px;color:var(--faint);letter-spacing:0;margin-left:6px}.stat-note{font-size:10px;color:var(--faint);margin-top:7px}.stat-error .stat-number.has-errors{color:var(--red)}.comparison{border:1px solid #536747;background:#182117;border-radius:9px;padding:15px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:18px}.comparison.different{border-color:#6f4933;background:#241d17}.compare-title{font-size:12px;font-weight:600;margin-bottom:4px}.compare-note{font:11px/1.6 var(--mono);color:var(--muted);overflow-wrap:anywhere}.compare-actions{display:flex;gap:14px;align-items:center;flex-shrink:0}.workspace{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}.workspace-head{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:1px solid var(--line);padding:17px 21px}.section-title{font-size:13px;font-weight:650;display:flex;align-items:center;gap:10px}.count{background:#242c2d;border:1px solid #34403b;border-radius:4px;padding:1px 6px;font:10px var(--mono);color:var(--muted)}.filename{font:11px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}.workbody{display:grid;grid-template-columns:43% 57%;min-height:506px}.timeline-pane{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}.filters{padding:16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}.searchbox{position:relative;flex:1;min-width:0}.searchbox:before{content:"";position:absolute;left:13px;top:11px;border:1.5px solid var(--faint);border-radius:50%;width:9px;height:9px}.searchbox:after{content:"";position:absolute;left:23px;top:22px;height:5px;width:1.5px;background:var(--faint);transform:rotate(-45deg);transform-origin:top}.search{width:100%;background:#0f1417;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:9px 10px 9px 33px;font-size:11px;outline:none}.search::placeholder{color:var(--faint)}.error-toggle{font-size:11px;display:flex;align-items:center;gap:7px;color:var(--muted);white-space:nowrap;cursor:pointer}.error-toggle input{accent-color:var(--lime);margin:0}.timeline{padding:12px 12px 12px 16px;margin:0;list-style:none;max-height:455px;overflow:auto;scrollbar-color:#35423e transparent;flex:1}.event{position:relative;width:100%;text-align:left;border:1px solid transparent;background:transparent;border-radius:7px;display:grid;grid-template-columns:27px minmax(0,1fr) auto;gap:11px;padding:13px 11px;margin:0 0 5px}.event:hover{background:#1a2125}.event.selected{border-color:#43513c;background:#1d271e}.event-index{font:11px var(--mono);color:var(--faint);padding-top:3px}.event.selected .event-index{color:var(--lime)}.event-name{font:12px/1.5 var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.event-summary{font:10px/1.5 var(--mono);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:5px}.event-right{text-align:right;padding-top:1px}.status{font:9px/1.5 var(--mono);letter-spacing:.5px;border:1px solid #354b37;background:#1c2a21;color:#acd5a8;border-radius:4px;padding:2px 5px;white-space:nowrap}.status.error{color:var(--red);background:var(--red-dim);border-color:#5c3935}.duration{font:10px var(--mono);color:var(--muted);margin-top:10px}.event-track{height:2px;background:#2c3732;width:46px;margin-top:7px;margin-left:auto;border-radius:2px}.event-bar{height:2px;background:#5f7753;min-width:2px}.event.error-row .event-bar{background:#ae6d63}.no-results{padding:45px 20px;text-align:center;color:var(--muted);font-size:12px}.more{display:block;margin:10px auto}.timeline-foot{border-top:1px solid var(--line);padding:11px 20px;color:var(--faint);font:10px var(--mono);display:flex;justify-content:space-between;gap:10px}.inspector{padding:24px 26px;min-width:0}.inspect-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.inspect-label{font:9px var(--mono);letter-spacing:1.5px;color:var(--faint)}.inspect-name{font:18px/1.5 var(--mono);margin:10px 0 6px;overflow-wrap:anywhere}.inspect-meta{display:flex;gap:15px;font:10px var(--mono);color:var(--muted);padding-bottom:20px;border-bottom:1px solid var(--line)}.payload-heading{display:flex;align-items:center;justify-content:space-between;margin:19px 0 8px}.payload-heading h3{font:10px var(--mono);letter-spacing:1px;color:var(--muted);margin:0}.payload-kind{font:9px var(--mono);color:var(--faint)}.code{background:#0c1114;border:1px solid #232e31;border-radius:7px;padding:15px 16px;margin:0;font:11px/1.8 var(--mono);color:#c1d0c6;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;tab-size:2;scrollbar-color:#35423e transparent}.code.error-code{color:#ffb6ad;border-color:#49302c;background:#191514}.inspector-empty{display:flex;min-height:390px;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:12px}.empty{padding:48px 24px 42px;text-align:center;grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:430px}.empty-art{width:91px;height:70px;border:1px solid #4c5e42;background:linear-gradient(140deg,#223021,#141c18);border-radius:15px;display:flex;align-items:center;justify-content:center;gap:15px;margin-bottom:23px;box-shadow:0 18px 60px #a8d1730b;position:relative}.reel{width:22px;height:22px;border:5px double #8ca87a;border-radius:50%}.empty-art:after{content:"";position:absolute;bottom:9px;width:40px;border-bottom:2px solid #718865}.empty h2{font-size:19px;letter-spacing:-.4px;font-weight:500;margin:0 0 9px}.empty p{font-size:12px;color:var(--muted);margin:0 0 24px;max-width:360px}.empty-actions{display:flex;align-items:center;gap:19px}.empty-hint{font:10px var(--mono);color:var(--faint);margin-top:22px}.drop-active .workspace{outline:2px dashed var(--lime);outline-offset:5px}.footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:21px 0 30px;color:var(--faint);font:10px/1.6 var(--mono)}.footer strong{font-weight:400;color:var(--muted)}.key{border:1px solid var(--line);padding:1px 5px;border-radius:3px;margin:0 4px}details{color:var(--muted);font-size:11px;margin-bottom:25px}summary{cursor:pointer;color:var(--faint)}details p{max-width:870px;line-height:1.8}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}[hidden]{display:none!important}
+    @media(min-width:1500px){.shell{padding:0 60px}.hero{padding-top:55px}}
+    @media(max-width:950px){.shell{padding:0 24px}.hero{align-items:flex-start;flex-direction:column;padding-top:30px}.hero-actions{padding:0}h1{font-size:38px}.workbody{grid-template-columns:45% 55%}.inspector{padding:21px 18px}.stat{padding:17px}.stat-number{font-size:23px}.filename{max-width:240px}.filters{flex-wrap:wrap}.searchbox{min-width:140px}.local{font-size:9px;letter-spacing:1px}}
+    @media(max-width:650px){.shell{padding:0 16px}.topbar{height:70px}.brand{font-size:21px}.version{display:none}.local{font-size:8px}.hero{padding:28px 0 24px;gap:21px}h1{font-size:34px}.intro{font-size:12px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:18px}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}.stat{padding:15px 18px}.stat-number{font-size:24px}.stat-note{font-size:9px}.workbody{grid-template-columns:1fr}.timeline-pane{border-right:0;border-bottom:1px solid var(--line)}.timeline{max-height:330px}.inspector{padding:22px 19px}.workspace-head{padding:14px 16px;align-items:flex-start;flex-direction:column;gap:7px}.filename{max-width:100%}.comparison{align-items:flex-start;flex-direction:column;padding:14px}.compare-actions{width:100%;justify-content:space-between}.footer{font-size:9px;align-items:flex-start;flex-direction:column;gap:8px;padding:18px 0}.empty{padding:38px 18px;min-height:390px}.empty-actions{gap:15px}.hero-actions{width:100%}.hero-actions .btn{flex:1;padding:11px 12px}.code{font-size:10px}}
+    @media(prefers-reduced-motion:no-preference){.btn,.event{transition:background .12s,border-color .12s}.dot{animation:glow 3s ease-in-out infinite}@keyframes glow{50%{box-shadow:0 0 16px #c4ef9150}}}
+  </style>
+</head>
+<body>
+<div class="shell" id="app">
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>tooltape<span class="version">VIEWER / 01</span></div>
+    <div class="local"><span class="dot" aria-hidden="true"></span>OFFLINE BY DESIGN</div>
+  </header>
+  <main>
+    <section class="hero" aria-labelledby="page-title">
+      <div><div class="eyebrow">A little clarity for your agents</div><h1 id="page-title">Every call. <span>Nothing lost.</span></h1><p class="intro">Inspect a recorded run. Find the failure. See exactly where two runs drift.</p></div>
+      <div class="hero-actions"><button class="btn" id="compare-button" disabled><span class="plus" aria-hidden="true">↔</span>Compare tape</button><button class="btn btn-primary" id="open-button"><span class="plus" aria-hidden="true">+</span>Open tape</button></div>
+    </section>
+    <input class="file-input" type="file" id="open-file" accept=".tape,text/plain" aria-label="Open primary tape">
+    <input class="file-input" type="file" id="compare-file" accept=".tape,text/plain" aria-label="Open comparison tape">
+    <div class="notice" id="notice" role="alert" hidden></div>
+    <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
+    <section class="stats" aria-label="Run summary">
+      <div class="stat"><div class="stat-label">Tool calls</div><div class="stat-number" id="stat-calls">—</div><div class="stat-note">The complete execution sequence</div></div>
+      <div class="stat"><div class="stat-label">Recorded tool time</div><div class="stat-number"><span id="stat-time">—</span><span class="stat-unit" id="stat-time-unit"></span></div><div class="stat-note">Sum of recorded call durations</div></div>
+      <div class="stat"><div class="stat-label">Successful calls</div><div class="stat-number"><span id="stat-success">—</span><span class="stat-unit" id="stat-success-unit"></span></div><div class="stat-note" id="stat-success-note">Recorded without an exception</div></div>
+      <div class="stat stat-error"><div class="stat-label">Errors</div><div class="stat-number" id="stat-errors">—</div><div class="stat-note">Exceptions preserved in the tape</div></div>
+    </section>
+    <section class="comparison" id="comparison" aria-label="Tape comparison" hidden><div><div class="compare-title" id="compare-title"></div><div class="compare-note" id="compare-note"></div></div><div class="compare-actions"><button class="btn btn-small" id="jump-divergence">Inspect divergence</button><button class="btn-text" id="clear-compare">Clear comparison</button></div></section>
+    <section class="workspace" aria-label="Tape explorer">
+      <div class="workspace-head"><div class="section-title">Execution timeline <span class="count" id="timeline-count">0 CALLS</span></div><div class="filename" id="filename">Waiting for a .tape file</div></div>
+      <div class="workbody">
+        <section class="empty" id="empty"><div class="empty-art" aria-hidden="true"><span class="reel"></span><span class="reel"></span></div><h2>Your run, ready for a closer look.</h2><p>Drop a .tape file here, or open one from your computer. Everything stays in this browser tab.</p><div class="empty-actions"><button class="btn btn-primary" id="empty-open">Open a tape</button><button class="btn-text" id="load-example">Try an example ↗</button></div><div class="empty-hint">NO SERVER · NO ACCOUNT · NO UPLOAD</div></section>
+        <div class="timeline-pane" id="timeline-pane" hidden><div class="filters"><div class="searchbox"><input class="search" id="search" type="search" placeholder="Filter tool names or payloads…" aria-label="Filter tool names or payloads" autocomplete="off" spellcheck="false"></div><label class="error-toggle"><input type="checkbox" id="errors-only">Errors only</label></div><ol class="timeline" id="timeline" aria-label="Tool calls"></ol><div class="timeline-foot"><span id="visible-count"></span><span>Select a call to inspect →</span></div></div>
+        <section class="inspector" id="inspector" aria-label="Selected call" hidden></section>
+      </div>
+    </section>
+    <footer class="footer"><span><strong>Local files. Local inspection.</strong> Your tape never leaves this tab.</span><span>TOOLTAPE v1 <span aria-hidden="true">/</span> <span class="key">Esc</span> clears filters</span></footer>
+    <details><summary>About this viewer &amp; comparison</summary><p>This single HTML file works directly from disk with no dependencies, uploads, storage, or network requests. Open a ToolTape v1 file, filter calls by tool name or payload, and select any call to inspect its input and recorded result. Comparison checks call index, tool name, canonical input, status, and canonical output or error class, in order. Durations are displayed but do not count as divergence. A shorter or longer tape diverges at the first missing call. Files are limited to 16 MiB and 50,000 calls to keep local inspection responsive. JSON numbers are normalized without losing precision. Equality covers only captured fields; redacted or omitted fields cannot be compared. A valid tape does not prove the original workflow completed. Close or reload this tab to discard its data.</p></details>
+  </main>
+</div>
+<script>
+'use strict';
+// Intentionally dependency-free: only File/Blob reads and DOM rendering, never network or storage.
+const $ = id => document.getElementById(id);
+const state = { tape: null, comparison: null, selected: 0, limit: 250, difference: null, openVersion: 0, compareVersion: 0 };
+const MAX_BYTES = 16 * 1024 * 1024;
+const MAX_CALLS = 50000;
+const MAX_DISPLAY_CHARS = 100000;
+const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+const compareFields = [['index', 'call index'], ['name', 'tool name'], ['input', 'input'], ['status', 'status'], ['output', 'output / error']];
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+function decodeField(value, line, column) {
+  if (!/^[A-Za-z0-9_-]*$/.test(value) || value.length % 4 === 1) throw new Error('Line ' + line + ': invalid base64url in ' + column + '.');
+  try {
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    // A round trip also rejects non-zero unused bits and non-canonical encodings.
+    if (btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') !== value) throw new Error('Non-canonical base64url');
+    return decoder.decode(Uint8Array.from(raw, char => char.charCodeAt(0)));
+  } catch (_) { throw new Error('Line ' + line + ': invalid base64url or UTF-8 in ' + column + '.'); }
+}
+function canonicalJson(source, line, column) {
+  // A small lossless parser mirrors the Java codec: sorted keys, decimal numbers,
+  // duplicate-key rejection, and a 64-level nesting bound. Never parses numbers
+  // through JavaScript Number, so 9223372036854775807 and adjacent values differ.
+  let offset = 0;
+  const fail = detail => { throw new Error('Line ' + line + ': ' + column + ' ' + detail + ' (offset ' + offset + ').'); };
+  const whitespace = () => { while (offset < source.length && /[ \n\r\t]/.test(source[offset])) offset++; };
+  function quote(value) {
+    let text = '"';
+    for (let i = 0; i < value.length; i++) {
+      const c = value[i], code = value.charCodeAt(i);
+      if (c === '"' || c === '\\') text += '\\' + c;
+      else if (c === '\n') text += '\\n';
+      else if (c === '\r') text += '\\r';
+      else if (c === '\t') text += '\\t';
+      else if (code < 32 || (code >= 0xd800 && code <= 0xdfff)) text += '\\u' + code.toString(16).padStart(4, '0');
+      else text += c;
+    }
+    return text + '"';
+  }
+  function string() {
+    if (source[offset] !== '"') fail('contains invalid JSON');
+    const start = offset++;
+    let escaped = false;
+    while (offset < source.length) {
+      const c = source[offset++];
+      if (escaped) { escaped = false; continue; }
+      if (c === '\\') { escaped = true; continue; }
+      if (c === '"') {
+        try { return JSON.parse(source.slice(start, offset)); } catch (_) { fail('contains an invalid JSON string'); }
+      }
+    }
+    fail('contains an unterminated JSON string');
+  }
+  function number() {
+    const start = offset;
+    while (offset < source.length && /[0-9eE+.-]/.test(source[offset])) offset++;
+    const token = source.slice(start, offset);
+    if (!/^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/.test(token)) fail('contains an invalid JSON number');
+    const match = token.match(/^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/);
+    const fraction = match[3] || '';
+    const exponent = BigInt(match[4] || '0');
+    let scale = BigInt(fraction.length) - exponent;
+    if (scale < -10000n || scale > 10000n) fail('contains a number whose decimal scale exceeds 10,000');
+    let digits = (match[2] + fraction).replace(/^0+/, '');
+    if (!digits) return '0';
+    let end = digits.length;
+    while (end > 0 && digits[end - 1] === '0') end--;
+    scale -= BigInt(digits.length - end);
+    digits = digits.slice(0, end);
+    const point = digits.length - Number(scale);
+    if (point <= 0) return match[1] + '0.' + '0'.repeat(-point) + digits;
+    if (point >= digits.length) return match[1] + digits + '0'.repeat(point - digits.length);
+    return match[1] + digits.slice(0, point) + '.' + digits.slice(point);
+  }
+  function value(depth) {
+    if (depth > 64) fail('exceeds 64 levels of JSON nesting');
+    whitespace();
+    const c = source[offset];
+    if (c === '"') return quote(string());
+    if (c === '{') {
+      offset++; whitespace();
+      const entries = [], keys = new Set();
+      if (source[offset] === '}') { offset++; return '{}'; }
+      while (offset < source.length) {
+        whitespace(); const key = string();
+        if (keys.has(key)) fail('contains a duplicate JSON key');
+        keys.add(key); whitespace();
+        if (source[offset++] !== ':') fail('contains invalid JSON');
+        entries.push([key, value(depth + 1)]); whitespace();
+        const separator = source[offset++];
+        if (separator === '}') return '{' + entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0).map(([key, v]) => quote(key) + ':' + v).join(',') + '}';
+        if (separator !== ',') fail('contains invalid JSON');
+      }
+      fail('contains an unterminated JSON object');
+    }
+    if (c === '[') {
+      offset++; whitespace(); const values = [];
+      if (source[offset] === ']') { offset++; return '[]'; }
+      while (offset < source.length) {
+        values.push(value(depth + 1)); whitespace();
+        const separator = source[offset++];
+        if (separator === ']') return '[' + values.join(',') + ']';
+        if (separator !== ',') fail('contains invalid JSON');
+      }
+      fail('contains an unterminated JSON array');
+    }
+    for (const literal of ['true', 'false', 'null']) if (source.startsWith(literal, offset)) { offset += literal.length; return literal; }
+    return number();
+  }
+  whitespace();
+  if (source[offset] !== '{') fail('must be a JSON object');
+  const result = value(0); whitespace();
+  if (offset !== source.length) fail('contains trailing JSON data');
+  return result;
+}
+function parseTape(text, name) {
+  if (!text.endsWith('\n')) throw new Error('Truncated tape: a final LF newline is required.');
+  if (text.includes('\r')) throw new Error('ToolTape v1 requires LF line endings; CRLF is not supported.');
+  const lines = text.split('\n');
+  lines.pop();
+  if (lines[0] !== 'TOOLTAPE\t1') throw new Error('Not a ToolTape v1 file. Expected the header TOOLTAPE followed by a tab and 1.');
+  if (lines.length - 1 > MAX_CALLS) throw new Error('This tape exceeds the 50,000-call viewer limit.');
+  const calls = [];
+  let totalNanos = 0n;
+  let errors = 0;
+  for (let n = 1; n < lines.length; n++) {
+    const line = lines[n];
+    const parts = line.split('\t');
+    if (parts.length !== 6) throw new Error('Line ' + (n + 1) + ': expected 6 tab-separated columns; found ' + parts.length + '.');
+    const [index, nanos, name64, input64, status, output64] = parts;
+    if (!/^(0|[1-9][0-9]*)$/.test(index)) throw new Error('Line ' + (n + 1) + ': call index must be a nonnegative integer.');
+    if (index !== String(n - 1)) throw new Error('Line ' + (n + 1) + ': call indexes must be contiguous and start at 0.');
+    if (!/^(0|[1-9][0-9]*)$/.test(nanos)) throw new Error('Line ' + (n + 1) + ': durationNanos must be a nonnegative integer.');
+    if (status !== 'OK' && status !== 'ERROR') throw new Error('Line ' + (n + 1) + ': status must be OK or ERROR.');
+    const toolName = decodeField(name64, n + 1, 'tool name');
+    if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(toolName)) throw new Error('Line ' + (n + 1) + ': tool name must be a static identifier of 1–128 characters.');
+    const input = canonicalJson(decodeField(input64, n + 1, 'input'), n + 1, 'input');
+    const decodedOutput = decodeField(output64, n + 1, 'output');
+    const output = status === 'OK' ? canonicalJson(decodedOutput, n + 1, 'output') : decodedOutput;
+    if (status === 'ERROR' && !/^[A-Za-z_$][A-Za-z0-9_.$]*$/.test(output)) throw new Error('Line ' + (n + 1) + ': ERROR output must be a Java exception class name.');
+    const duration = BigInt(nanos);
+    if (duration > 9223372036854775807n) throw new Error('Line ' + (n + 1) + ': durationNanos exceeds the signed 64-bit range.');
+    totalNanos += duration;
+    if (status === 'ERROR') errors++;
+    calls.push({ index, nanos: duration, name: toolName, input, status, output });
+  }
+  return { name, calls, totalNanos, errors };
+}
+function durationParts(nanos) {
+  // BigInt arithmetic preserves nanosecond precision without overflowing Number.
+  const scales = [[1000000000n, 's'], [1000000n, 'ms'], [1000n, 'µs'], [1n, 'ns']];
+  for (const [scale, unit] of scales) if (nanos >= scale || scale === 1n) {
+    const whole = nanos / scale;
+    const tenth = (nanos % scale) * 10n / scale;
+    return [whole.toString() + (scale > 1n && tenth > 0n ? '.' + tenth : ''), unit];
+  }
+}
+function durationText(nanos) { return durationParts(nanos).join(' '); }
+function showError(message) { $('notice').textContent = message; $('notice').hidden = false; }
+function clearError() { $('notice').hidden = true; $('notice').textContent = ''; }
+function announce(message) { $('announcer').textContent = message; }
+function firstDivergence(a, b) {
+  const length = Math.max(a.calls.length, b.calls.length);
+  for (let i = 0; i < length; i++) {
+    if (!a.calls[i] || !b.calls[i]) return { position: i, fields: [!a.calls[i] ? 'call missing from primary tape' : 'call missing from comparison tape'] };
+    const fields = compareFields.filter(([field]) => a.calls[i][field] !== b.calls[i][field]).map(([, label]) => label);
+    if (fields.length) return { position: i, fields };
+  }
+  return null;
+}
+function renderComparison() {
+  const hasComparison = Boolean(state.tape && state.comparison);
+  $('comparison').hidden = !hasComparison;
+  if (!hasComparison) { state.difference = null; return; }
+  state.difference = firstDivergence(state.tape, state.comparison);
+  $('comparison').classList.toggle('different', Boolean(state.difference));
+  $('jump-divergence').hidden = !state.difference;
+  if (state.difference) {
+    $('compare-title').textContent = 'First divergence · position ' + (state.difference.position + 1) + ' · ' + state.difference.fields.join(', ');
+    $('compare-note').textContent = state.tape.name + ' ↔ ' + state.comparison.name + ' · durations ignored';
+  } else {
+    $('compare-title').textContent = 'Same recorded behavior · all ' + state.tape.calls.length + ' calls match';
+    $('compare-note').textContent = state.tape.name + ' ↔ ' + state.comparison.name + ' · durations ignored';
+  }
+}
+function renderStats() {
+  const tape = state.tape;
+  $('empty').hidden = Boolean(tape);
+  $('timeline-pane').hidden = !tape;
+  $('inspector').hidden = !tape;
+  $('compare-button').disabled = !tape;
+  if (!tape) return;
+  $('stat-calls').textContent = tape.calls.length.toLocaleString();
+  const [amount, unit] = durationParts(tape.totalNanos);
+  $('stat-time').textContent = amount;
+  $('stat-time-unit').textContent = unit;
+  $('stat-success').textContent = tape.calls.length ? Math.round((tape.calls.length - tape.errors) / tape.calls.length * 100).toString() : '—';
+  $('stat-success-unit').textContent = tape.calls.length ? '%' : '';
+  $('stat-success-note').textContent = (tape.calls.length - tape.errors) + ' of ' + tape.calls.length + ' calls completed';
+  $('stat-errors').textContent = tape.errors.toLocaleString();
+  $('stat-errors').classList.toggle('has-errors', tape.errors > 0);
+  $('filename').textContent = tape.name;
+  $('filename').title = tape.name;
+  $('timeline-count').textContent = tape.calls.length + (tape.calls.length === 1 ? ' CALL' : ' CALLS');
+}
+function renderTimeline() {
+  const tape = state.tape;
+  if (!tape) return;
+  const query = $('search').value.trim().toLowerCase();
+  const onlyErrors = $('errors-only').checked;
+  const matches = [];
+  let maxNanos = 1n;
+  tape.calls.forEach((call, position) => {
+    if (call.nanos > maxNanos) maxNanos = call.nanos;
+    if ((!onlyErrors || call.status === 'ERROR') && (!query || (call.name + '\n' + call.input + '\n' + call.output).toLowerCase().includes(query))) matches.push({ call, position });
+  });
+  const shown = matches.slice(0, state.limit);
+  const fragment = document.createDocumentFragment();
+  for (const { call, position } of shown) {
+    const li = el('li');
+    const button = el('button', 'event' + (state.selected === position ? ' selected' : '') + (call.status === 'ERROR' ? ' error-row' : ''));
+    button.type = 'button';
+    button.setAttribute('aria-pressed', String(state.selected === position));
+    button.setAttribute('aria-label', 'Call ' + call.index + ': ' + (call.name || '(empty tool name)') + ', ' + call.status);
+    button.dataset.position = String(position);
+    const number = el('span', 'event-index', call.index.padStart(2, '0'));
+    const body = el('div');
+    body.append(el('div', 'event-name', call.name || '(empty tool name)'), el('div', 'event-summary', call.status === 'ERROR' ? call.output || '(empty error class)' : call.input));
+    const right = el('div', 'event-right');
+    right.append(el('span', 'status' + (call.status === 'ERROR' ? ' error' : ''), call.status), el('div', 'duration', durationText(call.nanos)));
+    const track = el('div', 'event-track');
+    const bar = el('div', 'event-bar');
+    bar.style.width = (call.nanos * 100n / maxNanos).toString() + '%';
+    track.append(bar); right.append(track);
+    button.append(number, body, right);
+    button.addEventListener('click', () => selectCall(position));
+    li.append(button); fragment.append(li);
+  }
+  if (!matches.length) fragment.append(el('li', 'no-results', tape.calls.length ? 'No calls match these filters.' : 'This tape has no recorded calls.'));
+  if (matches.length > shown.length) {
+    const li = el('li');
+    const more = el('button', 'btn btn-small more', 'Show next ' + Math.min(250, matches.length - shown.length) + ' calls');
+    more.addEventListener('click', () => { state.limit += 250; renderTimeline(); });
+    li.append(more); fragment.append(li);
+  }
+  $('timeline').replaceChildren(fragment);
+  $('visible-count').textContent = shown.length + ' of ' + matches.length + ' matching calls';
+}
+function selectCall(position) {
+  state.selected = position;
+  for (const button of $('timeline').querySelectorAll('button[data-position]')) {
+    const selected = Number(button.dataset.position) === position;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  }
+  renderInspector();
+}
+function prettyJson(text) {
+  // Indent the original text rather than JSON.stringify(JSON.parse(...)), which
+  // would silently round integer values outside JavaScript's safe integer range.
+  let output = '', indent = 0, inString = false, escaped = false, previous = '';
+  const padding = () => '  '.repeat(Math.min(indent, 16));
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      output += c;
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (/\s/.test(c)) continue;
+    if (c === '"') { inString = true; output += c; }
+    else if (c === '{' || c === '[') {
+      output += c; indent++;
+      let nextIndex = i + 1;
+      while (nextIndex < text.length && /\s/.test(text[nextIndex])) nextIndex++;
+      const next = text[nextIndex];
+      if (next !== '}' && next !== ']') output += '\n' + padding();
+    } else if (c === '}' || c === ']') {
+      indent = Math.max(0, indent - 1);
+      if (previous !== '[' && previous !== '{') output += '\n' + padding();
+      output += c;
+    } else if (c === ',') output += ',\n' + padding();
+    else if (c === ':') output += ': ';
+    else output += c;
+    previous = c;
+  }
+  return output;
+}
+function appendPayload(target, title, text, isError) {
+  const head = el('div', 'payload-heading');
+  head.append(el('h3', '', title), el('span', 'payload-kind', isError ? 'ERROR CLASS' : 'JSON'));
+  const truncated = text.length > MAX_DISPLAY_CHARS;
+  const visible = truncated ? text.slice(0, MAX_DISPLAY_CHARS) : text;
+  const pre = el('pre', 'code' + (isError ? ' error-code' : ''), isError ? visible || '(empty error class)' : prettyJson(visible));
+  pre.tabIndex = 0;
+  pre.setAttribute('aria-label', title.toLowerCase());
+  target.append(head, pre);
+  if (truncated) target.append(el('p', 'compare-note', 'Showing the first 100,000 characters. Search and comparison still use the complete recorded value.'));
+}
+function renderInspector() {
+  const target = $('inspector');
+  target.replaceChildren();
+  if (!state.tape) return;
+  const call = state.tape.calls[state.selected];
+  if (!call) {
+    target.append(el('div', 'inspector-empty', state.comparison && state.comparison.calls[state.selected] ? 'This call is missing from the primary tape.' : 'Select a recorded call to inspect its input and output.'));
+    if (state.comparison && state.comparison.calls[state.selected]) appendComparedCall(target, state.comparison.calls[state.selected]);
+    return;
+  }
+  const top = el('div', 'inspect-top');
+  top.append(el('span', 'inspect-label', 'RECORDED CALL / ' + call.index.padStart(2, '0')), el('span', 'status' + (call.status === 'ERROR' ? ' error' : ''), call.status));
+  const heading = el('h2', 'inspect-name', call.name || '(empty tool name)');
+  const meta = el('div', 'inspect-meta');
+  meta.append(el('span', '', 'Position ' + (state.selected + 1) + ' of ' + state.tape.calls.length), el('span', '', durationText(call.nanos) + ' elapsed'));
+  target.append(top, heading, meta);
+  appendPayload(target, 'INPUT', call.input, false);
+  appendPayload(target, call.status === 'ERROR' ? 'RECORDED EXCEPTION' : 'OUTPUT', call.output, call.status === 'ERROR');
+  if (state.comparison) {
+    const comparison = state.comparison.calls[state.selected];
+    if (!comparison) target.append(el('p', 'compare-note', 'This call is missing from the comparison tape.'));
+    else {
+      const fields = compareFields.filter(([field]) => call[field] !== comparison[field]);
+      if (fields.length) appendComparedCall(target, comparison);
+      else target.append(el('p', 'compare-note', 'Matches the comparison tape. Timing differences are ignored.'));
+    }
+  }
+}
+function appendComparedCall(target, call) {
+  const heading = el('div', 'payload-heading');
+  heading.append(el('h3', '', 'COMPARISON CALL / ' + call.index), el('span', 'status' + (call.status === 'ERROR' ? ' error' : ''), call.status));
+  target.append(heading, el('div', 'event-name', call.name || '(empty tool name)'));
+  appendPayload(target, 'COMPARISON INPUT', call.input, false);
+  appendPayload(target, call.status === 'ERROR' ? 'COMPARISON EXCEPTION' : 'COMPARISON OUTPUT', call.output, call.status === 'ERROR');
+}
+function loadPrimary(tape) {
+  state.tape = tape; state.comparison = null; state.selected = 0; state.limit = 250;
+  state.compareVersion++;
+  $('search').value = ''; $('errors-only').checked = false;
+  renderStats(); renderComparison(); renderTimeline(); renderInspector();
+  announce('Opened ' + tape.name + ', ' + tape.calls.length + ' calls, ' + tape.errors + ' errors.');
+}
+async function readFile(file, compare) {
+  if (!file) return;
+  const version = compare ? ++state.compareVersion : ++state.openVersion;
+  const primaryAtStart = state.tape;
+  clearError();
+  const current = () => compare ? version === state.compareVersion && primaryAtStart === state.tape : version === state.openVersion;
+  try {
+    if (file.size > MAX_BYTES) throw new Error('This file exceeds the 16 MiB viewer limit.');
+    if (compare && !state.tape) throw new Error('Open a primary tape before adding a comparison.');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!current()) return;
+    let text;
+    try { text = decoder.decode(bytes); } catch (_) { throw new Error('This file is not valid UTF-8.'); }
+    const tape = parseTape(text, file.name);
+    if (!current()) return;
+    if (compare) {
+      state.comparison = tape;
+      renderComparison(); renderInspector();
+      announce(state.difference ? $('compare-title').textContent : 'All recorded calls match.');
+    } else loadPrimary(tape);
+  } catch (error) { if (current()) showError('Could not open ' + file.name + '\n' + error.message); }
+}
+function encode(value) {
+  const bytes = new TextEncoder().encode(value);
+  let text = '';
+  bytes.forEach(byte => { text += String.fromCharCode(byte); });
+  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function exampleTape() {
+  const rows = [
+    ['0', '490207', 'weather.lookup', '{"city":"Hangzhou"}', 'ERROR', 'java.io.IOException'],
+    ['1', '48685', 'weather.lookup', '{"city":"Hangzhou"}', 'OK', '{"temperature":22}']
+  ];
+  return 'TOOLTAPE\t1\n' + rows.map(([index, nanos, name, input, status, output]) => [index, nanos, encode(name), encode(input), status, encode(output)].join('\t')).join('\n') + '\n';
+}
+$('open-button').addEventListener('click', () => $('open-file').click());
+$('empty-open').addEventListener('click', () => $('open-file').click());
+$('compare-button').addEventListener('click', () => $('compare-file').click());
+$('open-file').addEventListener('change', event => { const file = event.target.files[0]; event.target.value = ''; readFile(file, false); });
+$('compare-file').addEventListener('change', event => { const file = event.target.files[0]; event.target.value = ''; readFile(file, true); });
+$('search').addEventListener('input', () => { state.limit = 250; renderTimeline(); });
+$('errors-only').addEventListener('change', () => { state.limit = 250; renderTimeline(); });
+$('clear-compare').addEventListener('click', () => { state.compareVersion++; state.comparison = null; renderComparison(); renderInspector(); announce('Comparison cleared.'); });
+$('load-example').addEventListener('click', () => { state.openVersion++; clearError(); loadPrimary(parseTape(exampleTape(), 'example · weather-retry.tape')); });
+$('jump-divergence').addEventListener('click', () => {
+  if (!state.difference) return;
+  $('search').value = ''; $('errors-only').checked = false;
+  state.selected = state.difference.position; state.limit = Math.max(250, state.selected + 1);
+  renderTimeline(); renderInspector();
+  const button = $('timeline').querySelector('[data-position="' + state.selected + '"]');
+  if (button) { button.scrollIntoView({ block: 'nearest' }); button.focus({ preventScroll: true }); }
+  else { $('inspector').tabIndex = -1; $('inspector').focus(); }
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') { $('search').value = ''; $('errors-only').checked = false; state.limit = 250; renderTimeline(); }
+});
+let dragDepth = 0;
+document.addEventListener('dragenter', event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); dragDepth++; document.body.classList.add('drop-active'); } });
+document.addEventListener('dragover', event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } });
+document.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('drop-active'); });
+document.addEventListener('drop', event => {
+  event.preventDefault(); dragDepth = 0; document.body.classList.remove('drop-active');
+  const files = Array.from(event.dataTransfer.files);
+  if (files.length !== 1) { showError('Drop one .tape file at a time. Use Compare tape to load a second run.'); return; }
+  readFile(files[0], false);
+});
+</script>
+</body>
+</html>

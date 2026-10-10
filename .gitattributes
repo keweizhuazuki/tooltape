@@ -1,0 +1,4 @@
+* text=auto
+*.tape text eol=lf
+*.sh text eol=lf
+*.java text eol=lf
