@@ -17,7 +17,7 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 ![ToolTape v2 会话时间线与已录制的工具异常](docs/images/viewer-session.png)
 
-图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38038608729)已通过全部 61 项有效检查。
+图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)已通过五组引擎/视口配置下的全部 153 项有效检查。
 
 <details>
 <summary>查看首次差异比较与移动布局</summary>
@@ -129,7 +129,7 @@ mvn test
 
 [JUnit 示例](src/test/java/dev/tooltape/RegressionJUnitTest.java)覆盖已提交的故障数据、完整回放断言和参数变化。运行 `mvn install` 后可在其他 Maven 项目中使用本地坐标 `dev.tooltape:tooltape:0.2.0`；该坐标尚未远程发布。
 
-[已验证的 Spring AI / kewei-ai-agent 接入](docs/SPRING_AI.zh-CN.md)已合并：假模型驱动真实 think → act 工具派发，22 项专项测试与打包通过。默认关闭，固定源码版本，ToolContext 仅在内存传递；未捕获输出时明确失败。它不是独立发布的通用框架模块。
+[已验证的 Spring AI / kewei-ai-agent 接入](docs/SPRING_AI.zh-CN.md)已合并：假模型驱动真实 think → act 工具派发，24 项专项测试与打包通过。默认关闭，固定源码版本，ToolContext 仅在内存传递；未捕获输出时明确失败。它不是独立发布的通用框架模块。
 
 ## 查看与比较
 
@@ -141,11 +141,11 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 退出码：`0` 有效或相同，`1` 首次语义差异，`2` 文件格式、I/O 或用法错误。耗时与元数据仅展示，不参与事件比较。应先执行 validate；语义相同不等于录制完整。输入输出差异会附带 `/city` 等 JSON 指针。
 
-本地打开 [viewer/index.html](viewer/index.html)，选择 `.tape` 文件，即可筛选失败、查看参数结果，或载入第二份文件定位差异。界面使用本地 File API，并通过 CSP 禁止网络连接。CI 已验证桌面 Chromium 与 390px 移动模拟；真实手机、Safari 及原生文件选择对话框尚未验证，也没有独立移动应用。截图来自真实浏览器，不使用模拟图。
+本地打开 [viewer/index.html](viewer/index.html)，选择 `.tape` 文件，即可筛选失败、查看参数结果，或载入第二份文件定位差异。界面使用本地 File API，并通过 CSP 禁止网络连接。CI 在 Ubuntu 上检查 Chromium、Firefox 和 WebKit，并覆盖 390px Chromium/WebKit 移动模拟；Linux WebKit 不等于品牌 Safari 或真实 iOS，原生文件选择对话框尚未验证，也没有独立移动应用。截图来自真实浏览器，不使用模拟图。
 
 ## 安全边界
 
-默认不保存输入输出字段、异常消息或堆栈。允许字段的值仍需人工审阅，任意文本无法自动保证不含秘密。文件继承操作系统权限，不加密。录制失败之前，真实工具的副作用可能已经发生，不能盲目重试。回放不是 JVM 沙箱，工具边界之外的副作用仍需由应用隔离。
+默认不保存输入输出字段、异常消息或堆栈。允许字段的值仍需人工审阅，任意文本无法自动保证不含秘密。新 POSIX 录制文件以仅属主可读写权限创建；Windows/非 POSIX 使用原生 ACL，仍需审阅。文件不加密。录制失败之前，真实工具的副作用可能已经发生，不能盲目重试。回放不是 JVM 沙箱，工具边界之外的副作用仍需由应用隔离。
 
 详见 [安全说明](SECURITY.md)和[格式规范](docs/FORMAT.md)。
 
@@ -157,9 +157,11 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 62 个真实 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/4/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
-- 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38038608729)通过 61 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
+- 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)通过 153 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
+
+- 离线查看器覆盖明确的 Chromium/Firefox/WebKit 项目，并隔离不同引擎的截图和来源记录
 
 - 提升小字号文字对比度，并通过浏览器计算样式检查默认、悬停、选中与焦点状态
 
@@ -189,7 +191,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
 2. 在保持报告 v1 契约兼容的前提下，增加可选的旧格式严格拒绝及多录制汇总。
-3. 在键盘回归测试基础上增加辅助技术评审和 Firefox/WebKit 覆盖；目前真实浏览器范围为 Chromium 桌面及移动模拟。
+3. 在跨引擎检查基础上增加辅助技术评审和真机测试；引擎模拟不代表原生 Safari/iOS 或 Android 兼容。
 4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
 5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。
 

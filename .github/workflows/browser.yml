@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  chromium:
+  browsers:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -26,8 +26,8 @@ jobs:
           cache-dependency-path: viewer/package-lock.json
       - name: Install pinned development dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Install pinned Chromium and system dependencies
-        run: npx --no-install playwright install --with-deps chromium
+      - name: Install pinned Chromium, Firefox, WebKit, and system dependencies
+        run: npx --no-install playwright install --with-deps chromium firefox webkit
       - name: Run dependency-free checks
         run: npm test
       - name: Run actual offline browser checks and capture screenshots

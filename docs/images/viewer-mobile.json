@@ -1,19 +1,24 @@
 {
   "screenshot": "viewer-mobile.png",
-  "kind": "actual Chromium rendering, no image compositing",
+  "screenshotSha256": "e1f683baaec779bfc2f0b1e5246c959e56a33ebbd7b975bcc4f013933e50d928",
+  "kind": "actual chromium rendering, no image compositing",
   "viewer": "viewer/index.html",
   "viewerSha256": "0d9e9d86738f02b28b3c96e5ed88d2d3e015fb370986eb845d13bd162ef46bb8",
   "fixture": "fixtures/weather-retry.tape, unchanged, first recorded exception selected",
   "sourceFixture": "fixtures/weather-retry.tape",
   "sourceFixtureSha256": "67b3f3734b6ba8a2157fb88a2412ee34ebf645f1ff26c71125f36d57750b977a",
-  "commit": "df29be715f435a248e40acb0a175a340f452ef23",
-  "workflowRun": "38038608729",
+  "commit": "1d9d113360bbf733d1e6011bffdb8e73e71c3921",
+  "workflowRun": "38039531019",
   "playwright": "1.64.0",
+  "browserName": "chromium",
   "browser": "156.0.8078.4",
   "project": "mobile-chromium",
   "viewport": {
     "width": 390,
     "height": 844
   },
-  "deviceScaleFactor": 1
+  "isMobile": true,
+  "hasTouch": true,
+  "deviceScaleFactor": 1,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"
 }

@@ -21,7 +21,7 @@ ToolTape turns a Java tool boundary into a reusable test fixture. Record the ord
 
 ![ToolTape v2 session timeline and recorded tool failure](docs/images/viewer-session.png)
 
-Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38038608729) passed all 61 active checks.
+Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed all 153 active checks across five engine/viewport projects.
 
 <details>
 <summary>See the first-divergence comparison and mobile layout</summary>
@@ -140,7 +140,7 @@ mvn test
 
 [Verified Spring AI / kewei-ai-agent integration →](docs/SPRING_AI.md)
 
-The optional application adapter is merged and tested through its real `think → act` dispatch with a fake model: 22 focused integration tests and packaging passed. It stays off by default, pins ToolTape source, preserves ToolContext in memory and fails clearly if output was not captured. It is not a separately published framework module.
+The optional application adapter is merged and tested through its real `think → act` dispatch with a fake model: 24 focused integration tests and packaging passed. It stays off by default, pins ToolTape source, preserves ToolContext in memory and fails clearly if output was not captured. It is not a separately published framework module.
 
 ## Inspect and compare
 
@@ -152,7 +152,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 Exit codes: `0` valid/equal, `1` first semantic difference, `2` malformed file, I/O or usage error. Timing and metadata are shown but ignored in event comparisons. Validate first; a semantic diff does not establish completeness. Input/output differences include a JSON pointer such as `/city`.
 
-Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.tape`, filter failures, inspect arguments/results, or load a second tape to find the first difference. The viewer uses local File APIs and blocks network connections with CSP. Desktop Chromium and 390px Chromium mobile emulation are tested in CI. Physical phones, Safari and native OS file-picker dialogs are not validated; no mobile app is claimed.
+Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.tape`, filter failures, inspect arguments/results, or load a second tape to find the first difference. The viewer uses local File APIs and blocks network connections with CSP. CI exercises Chromium, Firefox and WebKit on Ubuntu, including 390px Chromium/WebKit mobile emulation. Linux WebKit is not branded Safari or a physical iOS device; native OS file-picker dialogs are not validated and no mobile app is claimed.
 
 ## Where it fits
 
@@ -162,9 +162,11 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 62 real CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/4/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38038608729) passed 61 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
+
+- Cross-engine offline viewer checks with explicit Chromium/Firefox/WebKit projects and isolated screenshot provenance
 
 - Increased small-text contrast with computed-color browser checks across default, hover, selected and focus states
 
@@ -194,7 +196,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
 2. Extend CI reports with opt-in strict rejection of legacy inputs and multi-fixture summaries while preserving the v1 report contract.
-3. Extend the focused keyboard regressions with assistive-technology review and Firefox/WebKit coverage; current real-browser scope is Chromium desktop and mobile emulation.
+3. Extend cross-engine checks with assistive-technology review and physical-device testing; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.
 
