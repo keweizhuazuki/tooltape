@@ -10,6 +10,7 @@ Reviewed on 2026-10-10 after hosted runs warned about the Node 20 action runtime
 | [setup-java v6.0.1](https://github.com/actions/setup-java/releases/tag/v6.0.1) | `de7274f081f381c8f8158605e0321c36c376e2e6` |
 | [setup-node v7.1.0](https://github.com/actions/setup-node/releases/tag/v7.1.0) | `949feb2413d6458794dcd2491c4babbbce0c15c1` |
 | [upload-artifact v7.0.2](https://github.com/actions/upload-artifact/releases/tag/v7.0.2) | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
+| [download-artifact v7.0.0](https://github.com/actions/download-artifact/releases/tag/v7.0.0) | `37930b1c2abaa49bbe596cd826c3c89aef350131` |
 
 Release tags were resolved to commits through each official `actions/*` repository's Git refs API. Each pinned release's `action.yml` declares `node24`. Pins prevent a moving version tag from silently changing the executed code; they do not eliminate the need to review later releases.
 
@@ -30,3 +31,5 @@ Release tags were resolved to commits through each official `actions/*` reposito
 4. Run all OS/JDK jobs, Maven tests, viewer tests and browser checks before merging. Verify the merged main run and download a checksummed JAR artifact afterward.
 
 These steps are maintenance guidance, not a promise of automatic dependency updates or compatibility with self-hosted runners/GitHub Enterprise Server.
+
+The optional Jupiter compatibility workflow adds pinned download-artifact only for checksummed build inputs from the same run, not other repositories or runs. Its official action.yml uses Node 24 and requires runner 2.327.1 or newer. Consumer jobs have no checkout and use independent temporary directories and Maven repositories.

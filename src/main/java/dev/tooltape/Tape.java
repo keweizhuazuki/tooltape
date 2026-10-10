@@ -106,11 +106,30 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
     return decoded;
   }
 
+  /** Read a tape from a file, closing the stream opened for this call. */
   public static Tape read(Path path) throws IOException {
     byte[] bytes;
     try (InputStream in = Files.newInputStream(path)) {
       bytes = in.readNBytes(MAX_BYTES + 1);
     }
+    return parse(bytes);
+  }
+
+  /**
+   * Read a tape from a caller-owned stream using the same format and limits as {@link #read(Path)}.
+   * Reads through EOF, or at most {@code MAX_BYTES + 1} bytes to detect an oversized tape. The
+   * stream is never closed, including when reading or validation fails.
+   *
+   * @throws InvalidTapeException if the tape is malformed, truncated, or exceeds a format limit
+   * @throws IOException if reading the stream fails
+   * @throws NullPointerException if {@code in} is null
+   */
+  public static Tape read(InputStream in) throws IOException {
+    Objects.requireNonNull(in, "in");
+    return parse(in.readNBytes(MAX_BYTES + 1));
+  }
+
+  private static Tape parse(byte[] bytes) throws InvalidTapeException {
     if (bytes.length > MAX_BYTES) throw new InvalidTapeException("Tape exceeds 16 MiB");
     String text;
     try {

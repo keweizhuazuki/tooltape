@@ -135,6 +135,8 @@ mvn test
 
 [JUnit 示例](src/test/java/dev/tooltape/RegressionJUnitTest.java)覆盖已提交的故障数据、完整回放断言和参数变化。运行 `mvn install` 后可在其他 Maven 项目中使用本地坐标 `dev.tooltape:tooltape:0.2.0`；该坐标尚未远程发布。
 
+需要可复用 Jupiter 测试时，可构建可选的 [ReplayFixture 适配器](docs/JUNIT.zh-CN.md)。`ReplayFixture.fromResource(...).assertReplay(...)` 在每次执行时加载经过审查的 v2 夹具；`.test("scenario", ...)` 创建命名动态测试，自动校验策略并检查完整消费。核心仍零依赖，适配器需本地构建，Jupiter 由测试项目提供。JUnit 诊断可能包含捕获值，不属于 CLI 无载荷 JSON 报告契约。
+
 [已验证的 Spring AI / kewei-ai-agent 接入](docs/SPRING_AI.zh-CN.md)已合并：假模型驱动真实 think → act 工具派发，24 项专项测试与打包通过。默认关闭，固定源码版本，ToolContext 仅在内存传递；未捕获输出时明确失败。它不是独立发布的通用框架模块。
 
 ## 查看与比较
@@ -161,11 +163,15 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 验证状态
 
-- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
+- 可选 Jupiter 适配器：20 项测试在本地 5.14.4 和 6.0.3 下均通过，包含真实 JAR 资源及命名动态子测试结果。[隔离二进制消费工作流](.github/workflows/jupiter.yml)在 Java 17/21 下测试同一份适配器 JAR；兼容范围仅限明确验证的版本。
+
+- 本地 Linux/JDK 21：45 项无依赖检查及 35 项核心 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/10/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)通过 153 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
+
+- 可选的不可变 Jupiter 回放夹具，支持命名动态测试、JAR 内资源及调用方持有的有界流解析
 
 - 有明确数量上限、保持输入顺序的录制清单校验，使用独立 JSON 外层、安全逐项错误及汇总 CI 状态
 
@@ -200,7 +206,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 下次升级
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
-2. 在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
+2. 先补充多个独立编写的应用回放场景，再考虑目录发现或自动基线管理。在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
 3. 在跨引擎检查基础上增加辅助技术评审和真机测试；引擎模拟不代表原生 Safari/iOS 或 Android 兼容。
 4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
 5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。

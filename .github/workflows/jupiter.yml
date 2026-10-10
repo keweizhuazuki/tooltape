@@ -1,0 +1,105 @@
+name: optional Jupiter adapter
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  package-once:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build the core and adapter once, against the oldest supported Jupiter
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build.sh
+          mvn -B -Dmaven.repo.local="$RUNNER_TEMP/tooltape-build-m2" \
+            org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
+            -Dfile=target/tooltape.jar -DpomFile=pom.xml
+          mvn -B -f integrations/junit-jupiter/pom.xml \
+            -Dmaven.repo.local="$RUNNER_TEMP/tooltape-build-m2" \
+            -Djunit.version=5.14.4 verify
+      - name: Prepare checksummed internal compatibility inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/jupiter-dist
+          cp target/tooltape.jar target/jupiter-dist/tooltape-0.2.0.jar
+          cp pom.xml target/jupiter-dist/tooltape-0.2.0.pom
+          cp integrations/junit-jupiter/target/tooltape-junit-jupiter-0.2.0.jar target/jupiter-dist/
+          cp integrations/junit-jupiter/pom.xml target/jupiter-dist/tooltape-junit-jupiter-0.2.0.pom
+          mkdir -p target/jupiter-dist/consumer-source
+          cp integrations/junit-consumer/pom.xml integrations/junit-consumer/README.md target/jupiter-dist/consumer-source/
+          cp -R integrations/junit-consumer/src target/jupiter-dist/consumer-source/
+          printf 'commit=%s\njava=17\nadapter-junit=5.14.4\n' "$GITHUB_SHA" > target/jupiter-dist/BUILD-INFO.txt
+          cd target/jupiter-dist
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tooltape-jupiter-inputs-${{ github.sha }}
+          path: target/jupiter-dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  consume-packaged-jars:
+    needs: package-once
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['17', '21']
+        junit: ['5.14.4', '6.0.3']
+    steps:
+      # Intentionally no checkout: neither production sources nor reactor output can leak in.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: tooltape-jupiter-inputs-${{ github.sha }}
+          path: ${{ runner.temp }}/tooltape-inputs
+      - name: Verify the same JARs and install them in an independent consumer repository
+        shell: bash
+        working-directory: ${{ runner.temp }}/tooltape-inputs
+        run: |
+          set -euo pipefail
+          sha256sum -c SHA256SUMS
+          test ! -e "$RUNNER_TEMP/tooltape-consumer-m2"
+          for artifact in tooltape tooltape-junit-jupiter; do
+            mvn -B -Dmaven.repo.local="$RUNNER_TEMP/tooltape-consumer-m2" \
+              org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
+              -Dfile="$artifact-0.2.0.jar" -DpomFile="$artifact-0.2.0.pom"
+            cmp "$artifact-0.2.0.jar" \
+              "$RUNNER_TEMP/tooltape-consumer-m2/dev/tooltape/$artifact/0.2.0/$artifact-0.2.0.jar"
+          done
+          cp -R consumer-source "$RUNNER_TEMP/tooltape-consumer"
+      - name: Execute the standalone consumer outside the checkout
+        shell: bash
+        working-directory: ${{ runner.temp }}/tooltape-consumer
+        run: |
+          set -euo pipefail
+          case "$PWD/" in "$GITHUB_WORKSPACE/"*) echo 'Consumer must run outside the checkout' >&2; exit 1;; esac
+          mvn -B -Dmaven.repo.local="$RUNNER_TEMP/tooltape-consumer-m2" \
+            -Djunit.version=${{ matrix.junit }} verify
+          cd "$RUNNER_TEMP/tooltape-inputs"
+          sha256sum -c SHA256SUMS
+      - name: Retain consumer test evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tooltape-jupiter-consumer-java${{ matrix.java }}-junit${{ matrix.junit }}-${{ github.sha }}
+          path: ${{ runner.temp }}/tooltape-consumer/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 14
