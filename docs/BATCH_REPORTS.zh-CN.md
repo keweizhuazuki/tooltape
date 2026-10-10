@@ -14,7 +14,7 @@ java -jar target/tooltape.jar validate-batch --json --require-v2 fixtures/weathe
 - 明确提供 **1–64 个文件路径**，结果顺序与参数一致。含空格的路径需加引号；同一命令语法适用于 POSIX shell 和 PowerShell。
 - `validate-batch` 后必须紧跟 `--json`，再放可选 `--require-v2`，最后放全部文件。该选项拒绝旧 v1；默认模式仍接受格式有效的旧录制，并附警告。
 - 串行处理文件。重复路径保留为独立索引请求，不去重，也不自动发现文件。
-- ToolTape 不实现清单文件、目录遍历、标准输入、环境变量替换或通配符展开。需要可移植、可审阅的清单时，请避免使用 shell 通配符；未列出的文件不会被检查。
+- ToolTape 不实现清单文件、目录遍历、标准输入、环境变量替换或通配符展开。shell 和原生 Java 启动器可能提前改变参数；需要可移植、可审阅的清单时，请避免通配符，并使用加引号的 ASCII 路径；未列出的文件不会被检查。
 - 以 `--` 开头的参数按无效选项处理。同名文件可使用明确路径，如 `./--require-v2`。
 - 每次读取保留原有 16 MiB 文件上限，以及 JSON 和解码后内容限制。最多 64 次尝试，因此录制内容读取量最多为 64 ×（16 MiB + 1 字节）。同一时刻只保留一份解析后的录制，结果只包含安全摘要。
 - 批量模式在打开前检查路径是否指向普通文件。允许指向普通文件的符号链接；明确的目录、设备与 FIFO 返回 `IO_ERROR`。预检查不能消除文件系统竞争条件，也不能保证文件访问耗时。CI 仍应设置任务超时，并使用受控的数据目录。
@@ -25,7 +25,9 @@ java -jar target/tooltape.jar validate-batch --json --require-v2 fixtures/weathe
 
 使用 `Cp1252` 的托管 Windows JDK 17/21 启动器会在 ToolTape 收到参数前，将文件名中的 U+96EA 改为 `?`（[诊断运行](https://github.com/keweizhuazuki/tooltape/actions/runs/38042317004)）。加引号或设置 `-Dfile.encoding=UTF-8` 未能保留该字符，这与 [OpenJDK Windows 启动器的代码页转换](https://github.com/openjdk/jdk21u/blob/master/src/java.base/share/native/launcher/main.c#L105-L120)一致。
 
-可移植的 Windows CLI 任务应使用完整路径均为 ASCII 的文件名。其他机器当前代码页能表示的字符可能可用，但不承诺任意 Unicode 命令行参数。文件内部的 UTF-8 内容不受影响。测试分别检查原生参数传递，以及在独立 JVM 内构造 Unicode 路径的情况；后者不证明原生命令行支持。无需且不会修改系统编码设置。
+不含空格的变体还被展开为已有匹配文件名，并移除了相对路径前缀（[第二次诊断](https://github.com/keweizhuazuki/tooltape/actions/runs/38042619406)）；这不是 Unicode 参数原样传递。OpenJDK 会标记未加引号的通配字符，进行[参数展开](https://github.com/openjdk/jdk21u/blob/master/src/java.base/windows/native/libjli/cmdtoargs.c#L135-L144)。
+
+可移植的 Windows CLI 任务应使用加引号、完整路径均为 ASCII 的文件名。其他机器当前代码页能表示的字符可能可用，但不承诺任意 Unicode 命令行参数。文件内部的 UTF-8 内容不受影响。测试分别检查原生参数传递，以及在独立 JVM 内构造 Unicode 路径的情况；后者不证明原生命令行支持。无需且不会修改系统编码设置。
 
 ## 批量报告 v1
 
@@ -37,7 +39,7 @@ stdout 输出一个规范 JSON 文档和一个换行，ToolTape 本身不输出 
 - `counts: { "requested": N, "valid": V, "error": E }`，V + E = N
 - `results` 按参数顺序排列，每项为 `{ "inputIndex": 0, "report": ... }`
 
-`inputIndex` 从 0 开始。`report` 保留原有[单文件校验报告 v1](CLI_REPORTS.zh-CN.md)，包括 `command: "validate"`、摘要、警告和安全错误码。整体语法错误则添加固定 `INVALID_ARGUMENTS` 错误，省略 `counts`/`results`，不会虚构空的成功批次。
+`inputIndex` 从 0 开始，对应经过 shell/启动器处理后 ToolTape 实际收到的参数。`report` 保留原有[单文件校验报告 v1](CLI_REPORTS.zh-CN.md)，包括 `command: "validate"`、摘要、警告和安全错误码。整体语法错误则添加固定 `INVALID_ARGUMENTS` 错误，省略 `counts`/`results`，不会虚构空的成功批次。
 
 | 退出码 | 外层 outcome | 含义 |
 | --- | --- | --- |

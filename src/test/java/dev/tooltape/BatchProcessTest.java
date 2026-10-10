@@ -26,7 +26,7 @@ public final class BatchProcessTest {
   private static final int MAX_OUTPUT_BYTES = 64 * 1024;
   private static final String INVALID_PATH_TOKEN = "PRIVATE_INVALID_PATH_TOKEN_";
   private static final String UNICODE_PATH_TOKEN = "PRIVATE_UNICODE_PATH_TOKEN_";
-  private static final String UNICODE_FILENAME = "PRIVATE_PATH_unicode_\u96ea.tape";
+  private static final String UNICODE_FILENAME = "PRIVATE_PATH_with spaces \u96ea.tape";
   private static final String FIELD = "PRIVATE_FIELD_/~\"\n";
   private static final String INPUT = "PRIVATE_INPUT_\"\\\n\r\t\u0001\u96ea";
   private static final String OUTPUT = "PRIVATE_OUTPUT_\"\\\n\r\t\u0002\u96ea";
@@ -351,18 +351,7 @@ public final class BatchProcessTest {
     for (boolean requireV2 : List.of(false, true)) {
       String[] arguments = arguments(requireV2, unicode, unicode, recordedError);
       ProcessResult probe = runIn(directory, ArgumentProbeMain.class, arguments);
-      equal(0, probe.exitCode(), "Argument probe exit status");
-      equal("", probe.stderr(), "Argument probe has no diagnostics");
-      Map<String, Object> observed = Json.object(probe.stdout());
-      equal(Json.write(observed) + "\n", probe.stdout(), "Argument probe is canonical ASCII JSON");
-      equal(
-          Set.of("argumentCodePoints", "nativeEncoding", "fileEncoding"),
-          observed.keySet(),
-          "Argument probe has only transport diagnostics");
-      equal(
-          "UTF-8",
-          observed.get("fileEncoding"),
-          "File encoding does not determine native argv encoding");
+      Map<String, Object> observed = argumentProbe(probe);
       boolean roundTrip =
           Objects.equals(argumentCodePoints(arguments), observed.get("argumentCodePoints"));
       if (exactTransport != null)
@@ -415,11 +404,27 @@ public final class BatchProcessTest {
     }
     filenameChecks.add(
         Boolean.TRUE.equals(exactTransport)
-            ? "Unicode native argv round trip: exact, real CLI success"
-            : "LIMITATION: Windows Cp1252 native argv replaces U+96EA with '?'; real CLI reports"
-                + " INVALID_ARGUMENTS and continues");
+            ? "Unicode filename with spaces: exact native argv round trip, real CLI success"
+            : "LIMITATION: Windows Cp1252 quoted native argv replaces U+96EA with '?'; real CLI"
+                + " reports INVALID_ARGUMENTS and continues");
     filenameChecks.add(
         "Unicode Java path: verified by in-child injection, not native argv transport");
+  }
+
+  private static Map<String, Object> argumentProbe(ProcessResult probe) {
+    equal(0, probe.exitCode(), "Argument probe exit status");
+    equal("", probe.stderr(), "Argument probe has no diagnostics");
+    Map<String, Object> observed = Json.object(probe.stdout());
+    equal(Json.write(observed) + "\n", probe.stdout(), "Argument probe is canonical ASCII JSON");
+    equal(
+        Set.of("argumentCodePoints", "nativeEncoding", "fileEncoding"),
+        observed.keySet(),
+        "Argument probe has only transport diagnostics");
+    equal(
+        "UTF-8",
+        observed.get("fileEncoding"),
+        "File encoding does not determine native argv encoding");
+    return observed;
   }
 
   private static Object argumentCodePoints(String... arguments) {

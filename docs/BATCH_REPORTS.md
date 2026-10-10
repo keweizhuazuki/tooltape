@@ -14,7 +14,7 @@ Use a batch when a CI job should check every explicitly listed fixture and save 
 - Supply **1–64 explicit file paths**, in the order you want results. Quote paths containing spaces. The same command syntax works in POSIX shells and PowerShell.
 - Put `--json` immediately after `validate-batch`, then optional `--require-v2`, then all files. `--require-v2` rejects legacy v1; default mode still accepts well-formed legacy recordings with a warning.
 - Files are processed serially. Duplicate operands remain separate indexed requests; nothing is deduplicated or discovered implicitly.
-- No manifest, directory traversal, stdin, environment expansion or glob expansion is implemented by ToolTape. Avoid shell wildcards when you need a portable, reviewable inventory. A file omitted from the list is not checked.
+- No manifest, directory traversal, stdin, environment expansion or glob expansion is implemented by ToolTape. Shells and native Java launchers can transform arguments before ToolTape receives them; avoid wildcard characters and use quoted ASCII paths for a portable, reviewable inventory. A file omitted from the list is not checked.
 - Operands beginning with `--` are treated as invalid option syntax; use an explicit path such as `./--require-v2` for a file with that name.
 - Each read retains the existing 16 MiB tape limit and JSON/decoded-payload limits. At most 64 attempts means at most 64 × (16 MiB + 1 byte) of tape content read. Only one parsed tape is retained at a time; results contain safe summaries.
 - Batch mode checks that each path resolves to a regular file before opening it. Symlinks to regular files are allowed; obvious directories, devices and FIFOs produce `IO_ERROR`. This precheck does not eliminate filesystem races or bound filesystem latency. Keep a CI job timeout and use a controlled fixture directory.
@@ -25,7 +25,9 @@ Any invocation beginning with `validate-batch` uses the safe batch JSON error fo
 
 The hosted Windows JDK 17/21 launchers using `Cp1252` changed the filename character U+96EA to `?` before ToolTape received the arguments ([diagnostic run](https://github.com/keweizhuazuki/tooltape/actions/runs/38042317004)). Quoting and `-Dfile.encoding=UTF-8` did not preserve it. This matches the [OpenJDK Windows launcher code-page conversion](https://github.com/openjdk/jdk21u/blob/master/src/java.base/share/native/launcher/main.c#L105-L120).
 
-Use ASCII-only full paths for portable Windows CLI jobs. A filename representable in another machine's active code page may work there, but arbitrary Unicode argv support is not promised. UTF-8 fixture contents are unaffected. Tests distinguish native argument transport from a separate child-JVM Unicode-path check; the latter does not prove native CLI transport. No system encoding changes are required or performed.
+A no-space variant was also expanded into an existing matching filename with its relative prefix removed ([second diagnostic run](https://github.com/keweizhuazuki/tooltape/actions/runs/38042619406)); that is not an exact Unicode argument round trip. OpenJDK marks unquoted wildcard characters for [argument expansion](https://github.com/openjdk/jdk21u/blob/master/src/java.base/windows/native/libjli/cmdtoargs.c#L135-L144).
+
+Use quoted ASCII-only full paths for portable Windows CLI jobs. A filename representable in another machine's active code page may work there, but arbitrary Unicode argv support is not promised. UTF-8 fixture contents are unaffected. Tests distinguish native argument transport from a separate child-JVM Unicode-path check; the latter does not prove native CLI transport. No system encoding changes are required or performed.
 
 ## Batch report version 1
 
@@ -37,7 +39,7 @@ The independent envelope uses `batchReportVersion: 1`, not the single-command `r
 - `counts: { "requested": N, "valid": V, "error": E }`, where V + E = N
 - `results`, in operand order; each entry is `{ "inputIndex": 0, "report": ... }`
 
-`inputIndex` is zero-based. `report` is the unchanged [single-validation report v1](CLI_REPORTS.md), including its `command: "validate"`, summary, warnings and safe error code. Invalid overall syntax instead adds a fixed `error` with `INVALID_ARGUMENTS` and omits `counts`/`results`; it does not invent an empty successful batch.
+`inputIndex` is zero-based and refers to the arguments received by ToolTape, after any shell/launcher processing. `report` is the unchanged [single-validation report v1](CLI_REPORTS.md), including its `command: "validate"`, summary, warnings and safe error code. Invalid overall syntax instead adds a fixed `error` with `INVALID_ARGUMENTS` and omits `counts`/`results`; it does not invent an empty successful batch.
 
 | Exit | Envelope outcome | Meaning |
 | --- | --- | --- |
