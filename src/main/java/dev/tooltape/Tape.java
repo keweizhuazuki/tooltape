@@ -10,7 +10,7 @@ import java.util.*;
 public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete) {
   public static final String HEADER = "TOOLTAPE\t1";
   public static final String HEADER_V2 = "TOOLTAPE\t2";
-  public static final int MAX_BYTES = 16 * 1024 * 1024;
+  public static final int MAX_BYTES = Json.MAX_BYTES;
 
   /** Legacy in-memory tape: no policy identity or completion evidence. */
   public Tape(List<Event> events) {
@@ -35,6 +35,12 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
 
   public Tape {
     events = List.copyOf(events);
+    long canonicalBytes = 0;
+    for (Event event : events) {
+      canonicalBytes += event.canonicalBytes();
+      if (canonicalBytes > MAX_BYTES)
+        throw new IllegalArgumentException("Canonical tape payload exceeds 16 MiB");
+    }
     for (int i = 0; i < events.size(); i++)
       if (events.get(i).index() != i)
         throw new IllegalArgumentException("Non-contiguous event sequence");
@@ -48,8 +54,18 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
       validateName(tool);
       input = Json.write(Json.object(input));
       if (status.equals("OK")) result = Json.write(Json.object(result));
-      else if (!status.equals("ERROR") || !result.matches("[A-Za-z_$][A-Za-z0-9_.$]*"))
+      else if (!status.equals("ERROR")
+          || result.length() > 1024
+          || !result.matches(
+              "[\\p{L}\\p{Nl}\\p{Sc}\\p{Pc}][\\p{L}\\p{Nl}\\p{Sc}\\p{Pc}\\p{Nd}\\p{Mc}\\p{Mn}]*(\\.[\\p{L}\\p{Nl}\\p{Sc}\\p{Pc}][\\p{L}\\p{Nl}\\p{Sc}\\p{Pc}\\p{Nd}\\p{Mc}\\p{Mn}]*)*"))
         throw new IllegalArgumentException("Invalid outcome");
+    }
+
+    long canonicalBytes() {
+      return (long) tool.getBytes(StandardCharsets.UTF_8).length
+          + input.getBytes(StandardCharsets.UTF_8).length
+          + status.length()
+          + result.getBytes(StandardCharsets.UTF_8).length;
     }
 
     String line() {
@@ -136,6 +152,7 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
     }
     boolean complete = false;
     List<Event> events = new ArrayList<>();
+    long canonicalBytes = 0;
     for (int i = firstEvent; i < lines.length - 1; i++)
       try {
         String[] c = lines[i].split("\t", -1);
@@ -151,14 +168,18 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
         if (c.length != 6) throw new IllegalArgumentException("Expected six columns");
         if (!c[0].matches("0|[1-9][0-9]*") || !c[1].matches("0|[1-9][0-9]*"))
           throw new IllegalArgumentException("Non-canonical index/duration");
-        events.add(
+        Event event =
             new Event(
                 Integer.parseInt(c[0]),
                 Long.parseLong(c[1]),
                 decode(c[2]),
                 decode(c[3]),
                 c[4],
-                decode(c[5])));
+                decode(c[5]));
+        canonicalBytes += event.canonicalBytes();
+        if (canonicalBytes > MAX_BYTES)
+          throw new IllegalArgumentException("Canonical tape payload exceeds 16 MiB");
+        events.add(event);
       } catch (IllegalArgumentException | CharacterCodingException e) {
         throw new IOException("Invalid event at line " + (i + 1) + ": " + e.getMessage(), e);
       }

@@ -136,11 +136,19 @@ class SessionJUnitTest {
   }
 
   @Test
-  void legacyFixtureRemainsReadableAndReplayable() throws Exception {
+  void legacyAndCurrentFixturesRemainReadableAndReplayable() throws Exception {
     Tape tape = Tape.read(Path.of("fixtures/weather-retry.tape"));
     assertEquals(1, tape.version());
     assertNull(tape.metadata());
     assertFalse(tape.complete());
+    Tape current = Tape.read(Path.of("fixtures/weather-retry-v2.tape"));
+    assertTrue(current.complete());
+    try (Replay replay = new Replay(current, policy)) {
+      assertThrows(
+          Replay.RecordedToolException.class,
+          () -> replay.call("weather.lookup", Map.of("city", "Hangzhou")));
+      replay.call("weather.lookup", Map.of("city", "Hangzhou"));
+    }
     try (Replay replay = new Replay(tape, policy)) {
       assertThrows(
           Replay.RecordedToolException.class,

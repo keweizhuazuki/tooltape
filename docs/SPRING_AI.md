@@ -1,28 +1,60 @@
-# Spring AI integration design / 接入设计
+# Spring AI: verified kewei-ai-agent integration
 
-This is an integration guide, **not a shipped or compiled Spring AI adapter**. The core executable and JUnit examples are framework-independent.
+[English](SPRING_AI.md) | [简体中文](SPRING_AI.zh-CN.md)
 
-本文为接入设计，**不是已发布或编译验证的 Spring AI 适配器**。核心可执行示例和 JUnit 测试不依赖框架。
+The actual integration is now merged in [kewei-ai-agent PR #15](https://github.com/keweizhuazuki/kewei-ai-agent/pull/15), verified against Spring AI **2.0.0-M2**. It is an **opt-in application adapter**, not a separately published general-purpose Spring AI module. Other framework versions are not implied to work.
 
-## Verified application boundary / 已核实的应用边界
+## Reproduce the integration tests
 
-In [kewei-ai-agent's ToolCallAgent](https://github.com/keweizhuazuki/kewei-ai-agent/blob/main/src/main/java/com/kiwi/keweiaiagent/agent/ToolCallAgent.java), `act()` calls `toolCallingManager.executeToolCalls(prompt, toolCallChatResponse)`. Constructor-supplied `ToolCallback[]` are the relevant wrapping point. The project does not use ToolTape's Map API today.
+```sh
+git clone --recurse-submodules https://github.com/keweizhuazuki/kewei-ai-agent.git
+cd kewei-ai-agent
+# For an existing clone:
+git submodule update --init --recursive
+./mvnw -Ptooltape clean "-Dtest=ToolTape*,ToolCallAgentTest,ToolRegistrationTest" test
+./mvnw -Ptooltape -DskipTests package
+```
 
-该项目的 `act()` 通过 `ToolCallingManager.executeToolCalls` 派发工具。应在构造器接收的 `ToolCallback[]` 边界包装回调，不能假定项目已使用 ToolTape Map API；目前未修改或集成其仓库。
+On Windows, use `.\mvnw.cmd` for the same commands. Java 21 is required by the application. The profile adds the pinned `vendor/tooltape` sources and the app's adapter/test source roots; its default build has no ToolTape dependency. Do not replace the submodule pin with an unreviewed moving branch or invent Maven Central coordinates.
 
-## Adapter contract / 适配约定
+The merged integration passed **22 focused tool/adapter tests with packaging**, plus the application's default **90-test backend suite**. These are separate checks; the focused invocation is not the whole app suite.
 
-1. Preserve each callback's `ToolDefinition` and `ToolMetadata`, including return-direct behavior. Forward `ToolContext` only during live recording when the callback supports it.
-2. Parse the callback's JSON input to `Map<String,Object>` using your application's JSON library or `Json.object`.
-3. Route `(definition.name(), arguments)` through `Recorder` when capturing, or through `Replay` in a deterministic orchestration test. Never construct a live side-effect callback on the replay path.
-4. Call the original `ToolCallback.call(String)` only inside the live `Tool` implementation. Wrap its String return as `Map.of("text", result)` if text is needed; explicitly opt in to `text` after reviewing privacy. Prefer extracting safe scalar fields from structured results instead of recording arbitrary text.
-5. On replay, convert the sanitized `text` field back to the callback String response. If the response field was not captured, fail clearly rather than substituting live output.
-6. Normalize domain failures: some tools return an error String instead of throwing. These are recorded as OK unless your adapter explicitly maps them to an exception/error field. ToolTape does not infer failure from natural-language text.
+## What is actually exercised?
 
-中文要点：保留工具定义、元数据及 ToolContext；将 JSON 参数转为 Map；录制与回放使用不同边界，回放不得构造或调用邮件、文件等真实副作用工具；工具返回字符串需显式转换并审阅是否适合保存；错误字符串不会自动视为异常。
+[`ToolTapeAgentReplayTest`](https://github.com/keweizhuazuki/kewei-ai-agent/blob/74a73add6da6243bbc431ebb190327312b3be81c/src/tooltape-test/java/com/kiwi/keweiaiagent/tooltape/ToolTapeAgentReplayTest.java) runs `think()` with a local fake ChatModel and then the real `ToolCallAgent.act()` / Spring AI tool manager. Recording executes the synthetic tool once; replay returns the fixture without another live callback. No paid model or real external tool is used by this regression.
 
-## Test the right thing / 正确测试范围
+The adapter preserves `ToolDefinition`, `ToolMetadata` and the original JSON input. During recording only, it forwards `ToolContext` in memory; context is never submitted to the recorder. Replay retains definition/metadata and never retains or invokes the executable live callback.
 
-Start with a pre-scripted tool-call sequence or deterministic planner fixture. Running the real model again is an online evaluation and may change tool arguments/order; v0.1 does not replay model completions. The test validates the orchestration logic around the recorded tool boundary, not the model's quality.
+Source locations in kewei-ai-agent:
 
-从预设工具调用序列或确定性规划数据开始。重新调用真实模型属于在线评估，可能改变顺序或参数；v0.1 不回放模型响应。测试验证工具边界周围的编排逻辑，不评判模型质量。
+- `src/tooltape/java/com/kiwi/keweiaiagent/tooltape/ToolTapeSession.java`
+- `src/tooltape/java/com/kiwi/keweiaiagent/tooltape/ToolTapeBeanPostProcessor.java`
+- `src/tooltape/java/com/kiwi/keweiaiagent/tooltape/ToolTapeConfiguration.java`
+- `src/tooltape-test/java/com/kiwi/keweiaiagent/tooltape/`
+
+The BeanPostProcessor wraps the `allTools` and `memoryTools` callback arrays exported by ToolRegistration. These feed ManusSessionService and the actual ToolCallAgent dispatch path.
+
+## Runtime controls and privacy
+
+Compilation with `-Ptooltape` does not turn recording on. Runtime mode defaults to `off`.
+
+- `kewei.tooltape.mode`: `off`, `record`, or `replay`
+- `kewei.tooltape.path`: required for record/replay; record creates a new file
+- `kewei.tooltape.input-fields`: comma-separated top-level scalar allowlist; empty by default
+- `kewei.tooltape.capture-output`: false by default; true explicitly permits the entire returned String under `result`
+
+Output capture is a privacy decision: arbitrary tool text cannot be reliably sanitized. Use reviewed synthetic/test data or a domain-specific safe projection. Metadata-only recording is valid for inspection, but replay **fails clearly** when the required result was not captured; it does not invent a placeholder or fall back to a live tool. Null is a distinct captured result and is preserved.
+
+## Operational boundaries
+
+- This profile is a single serial debug/test session across the wrapped callbacks, not per-user/per-conversation production recording. Concurrent or recursive calls are rejected.
+- The recording closes with the Spring session/application lifecycle. A running/interrupted v2 recording without END is inspectable but cannot be safely replayed.
+- Tool replay does **not** replay the ChatModel, startup hooks or other external effects outside callbacks. Starting the real app in replay mode can still call its configured model. Use the fake-model regression above for a genuinely offline test.
+- A tool's returned error String is an OK tool return unless explicitly mapped by the adapter. Recorded thrown exceptions become `RecordedToolException` at the core boundary and are normalized by the application adapter; original exception-subclass branching is not automatically reproduced.
+- The repo owner has not selected an open-source license for ToolTape. Integration of their own repositories does not grant third-party reuse rights.
+
+## Policy hardening migration
+
+The post-v0.2 quality pass changes policy semantics from `scalar-v1` to `scalar-v2`: credential-name matching removes separators before checking names, closing newline/format-character bypasses. Old v2 policy fingerprints therefore deliberately fail replay under the new policy. Review and re-record fixtures with the same tested application/version; do not replace a hash manually to bypass verification. Legacy v1 remains readable but has no policy evidence.
+
+The application's Git submodule pin is the source of truth for which semantics it uses. Update that pin and rerun its integration suite together; never assume an application automatically follows ToolTape main.

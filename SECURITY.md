@@ -8,10 +8,18 @@
 - Replay does not accept a live tool delegate. Your orchestration code can still cause side effects outside the Tool interface: isolate those yourself. Replay is not a JVM sandbox.
 - Recorded errors replay as RecordedToolException with originalType, not reflectively constructed arbitrary exception classes. Translate into domain errors in your adapter if your code branches on exception types.
 - If persistence fails after a live tool executes, the recorder is poisoned and rejects further calls. The side effect may already have happened. Never automatically retry a failed record operation without checking the live system.
-- Files inherit OS permissions/umask. Store sensitive fixtures in access-controlled locations; do not commit unreviewed tapes. ToolTape does not encrypt files.
+- New files on POSIX filesystems are created owner-read/write only (0600); existing files are never overwritten. Windows/non-POSIX providers retain native ACL behavior, which must be reviewed separately. Store fixtures in access-controlled locations and do not commit unreviewed tapes. ToolTape does not encrypt files.
 
 Report security concerns privately to the repository owner via their public GitHub profile contact options; do not post real secrets in issues. No private disclosure channel is claimed until one is configured.
 
 ## v2 session safety
 
 New recordings include a capture-policy fingerprint and static provenance label. Replay rejects a v2 tape if its policy differs or the recording lacks a valid END marker. An END marker means the recording scope closed; it does not prove business success, durability, authenticity or absence of tampering. Legacy v1 fixtures remain usable but cannot offer these checks. Source labels must be explicitly reviewed static identifiers, never user content or secrets.
+
+## Bounded input and canonicalization
+
+Both raw and canonical JSON are bounded to 16 MiB; canonical event payloads across a tape also share a 16 MiB budget. Numeric tokens and their plain-decimal expansions are capped at 10,000 characters, JSON values at 100,000 nodes, nesting at 64 levels, and exception labels at 1,024 UTF-16 units. A small exponent-encoded file cannot expand without bound. These are input/output limits, not a promise that JVM heap usage is exactly 16 MiB.
+
+Oversized sanitized inputs that cannot fit the remaining tape budget fail before invoking the real tool. An oversized result is discovered after the tool returns, poisons the recording and prevents further calls; its external effect may already have happened.
+
+Credential checks normalize separators before matching names. This changes the policy algorithm to scalar-v2 and intentionally invalidates older v2 fingerprints. Re-record reviewed fixtures rather than hand-editing policy metadata. Arbitrary allowed string values still require privacy review.

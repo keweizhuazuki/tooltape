@@ -17,7 +17,7 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 ![ToolTape v2 会话时间线与已录制的工具异常](docs/images/viewer-session.png)
 
-图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529)已通过全部 25 项有效检查。
+图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454)已通过全部 25 项有效检查。
 
 <details>
 <summary>查看首次差异比较与移动布局</summary>
@@ -41,16 +41,18 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 ### 预构建 CLI（Java 17+）
 
-v0.2.0 预发布提供 JAR 和 SHA-256 校验文件；尚未发布到 Maven Central。
+CI 提供经过验证的 JAR 和 SHA-256 校验文件，尚未发布到 Maven Central。带版本标签的预发布若已提供，可在[发布列表](https://github.com/keweizhuazuki/tooltape/releases)中查看。
+
+当前经过验证的 v0.2 构建可从对应成功的 CI 下载：
 
 ```sh
-gh release download v0.2.0 --repo keweizhuazuki/tooltape --pattern tooltape-0.2.0.jar --pattern SHA256SUMS
+gh run download 38035619451 --repo keweizhuazuki/tooltape --name tooltape-dist-6cbb150b00fba0c32cd890e1034543e131e2f0ca
 sha256sum -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
 ```
 
-macOS 使用 `shasum -a 256 -c SHA256SUMS`；Windows 将 `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` 与 SHA256SUMS 中的值比较，一致后再执行。[发布说明与下载](https://github.com/keweizhuazuki/tooltape/releases/tag/v0.2.0)。
+CI 产物保留 30 天，下载可能需要登录 GitHub CLI；下方源码构建方式长期有效。macOS 使用 `shasum -a 256 -c SHA256SUMS`；Windows 将 `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` 与 SHA256SUMS 中的值比较，一致后再运行。
 
 ### 从源码构建
 
@@ -104,7 +106,7 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 
 `Tool` 输入输出为 JSON 兼容的 `Map<String,Object>`。回放返回脱敏后的结果，因此需允许业务逻辑依赖的字段。只保存明确允许的顶层标量；嵌套对象和数组替换为 `[REDACTED]`，凭据类字段名始终排除。未保存的输入字段无法参与回归校验。
 
-新录制采用 v2 格式，保存允许字段配置的 SHA-256 标识及可选的静态来源标签（`new Recorder(path, tool, policy, "my-workflow")`）。回放会在任何调用前拒绝策略变化或缺少有效关闭标记的数据。关闭录制不代表业务成功；旧 v1 数据仍可读取，但无法校验策略与完整性。
+新录制采用 v2 格式；加固后的 scalar-v2 策略会明确拒绝旧 v2 指纹，需审阅后重新录制，详见[迁移说明](docs/SPRING_AI.zh-CN.md#策略加固迁移)。录制保存允许字段配置的 SHA-256 标识及可选的静态来源标签（`new Recorder(path, tool, policy, "my-workflow")`）。回放会在任何调用前拒绝策略变化或缺少有效关闭标记的数据。关闭录制不代表业务成功；旧 v1 数据仍可读取，但无法校验策略与完整性。
 
 录制异常通过 `Replay.RecordedToolException.originalType()` 提供原类型，不会实例化任意异常类。若业务逻辑依赖异常子类，请在领域适配器中统一错误类型；[可执行重试示例](examples/RetryRegression.java)对此有明确处理。
 
@@ -116,7 +118,7 @@ mvn test
 
 [JUnit 示例](src/test/java/dev/tooltape/RegressionJUnitTest.java)覆盖已提交的故障数据、完整回放断言和参数变化。运行 `mvn install` 后可在其他 Maven 项目中使用本地坐标 `dev.tooltape:tooltape:0.2.0`；该坐标尚未远程发布。
 
-[Spring AI / kewei-ai-agent 接入设计](docs/SPRING_AI.md)仅为设计说明，尚无编译验证的专用适配器。
+[已验证的 Spring AI / kewei-ai-agent 接入](docs/SPRING_AI.zh-CN.md)已合并：假模型驱动真实 think → act 工具派发，22 项专项测试与打包通过。默认关闭，固定源码版本，ToolContext 仅在内存传递；未捕获输出时明确失败。它不是独立发布的通用框架模块。
 
 ## 查看与比较
 
@@ -142,17 +144,19 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 验证状态
 
-- 本地 Linux/JDK 21：45 项无依赖检查及 13 项 JUnit 测试通过；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
-- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998596)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
-- 界面：170 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529)通过 25 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
+- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
+- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619451)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
+- 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454)通过 25 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
 
+- 安全加固：规范化凭据字段、限制指数展开和节点数、真实调用前预检容量、新 POSIX 文件仅属主可读写
+- 真实可选 kewei-ai-agent 接入，输出需审阅后启用，回放不执行真实回调
 - v2 策略绑定、来源标签与关闭标记；不完整或策略不同的数据在回放前直接拒绝
 - 兼容旧 v1 数据，CLI 和查看器明确标记旧版及未完整关闭状态
 - 以 RFC 6901 JSON 指针定位首个输入输出差异
 - 通过 CI 运行真实 Chromium 桌面与移动模拟测试，并生成带来源信息的截图
-- 固定 JAR 时间戳，二次构建逐字节对比，预发布附带校验文件
+- 固定 JAR 时间戳，二次构建逐字节对比，CI 构建产物附带校验文件
 - 真实 Spring AI 项目的固定源码接入方式，不虚构 Maven Central 坐标
 
 ### v0.1 基础能力

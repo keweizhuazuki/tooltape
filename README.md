@@ -21,7 +21,7 @@ ToolTape turns a Java tool boundary into a reusable test fixture. Record the ord
 
 ![ToolTape v2 session timeline and recorded tool failure](docs/images/viewer-session.png)
 
-Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed all 25 active checks.
+Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454) passed all 25 active checks.
 
 <details>
 <summary>See the first-divergence comparison and mobile layout</summary>
@@ -45,16 +45,18 @@ The mobile image is browser emulation, not a physical-device claim. PNGs are dir
 
 ### Prebuilt CLI (Java 17+)
 
-The v0.2.0 prerelease includes a JAR and SHA-256 checksums; it is not published on Maven Central.
+CI produces a verified JAR and SHA-256 checksums. It is not published on Maven Central. Tagged prereleases, when available, are listed under [Releases](https://github.com/keweizhuazuki/tooltape/releases).
+
+The tested v0.2 build can currently be downloaded from its successful CI run:
 
 ```sh
-gh release download v0.2.0 --repo keweizhuazuki/tooltape --pattern tooltape-0.2.0.jar --pattern SHA256SUMS
+gh run download 38035619451 --repo keweizhuazuki/tooltape --name tooltape-dist-6cbb150b00fba0c32cd890e1034543e131e2f0ca
 sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
 ```
 
-On Windows, compare `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` with the value in `SHA256SUMS` before running the JAR. [Release assets and notes](https://github.com/keweizhuazuki/tooltape/releases/tag/v0.2.0).
+CI artifacts have 30-day retention and may require GitHub CLI sign-in; source builds below remain available. On Windows, compare `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` with the value in `SHA256SUMS` before running the JAR.
 
 ### Build from source
 
@@ -113,7 +115,7 @@ try (Replay replay = new Replay(Tape.read(Path.of("failure.tape")), policy)) {
 
 `Tool` accepts and returns `Map<String,Object>` of JSON-compatible data. Recorded output is sanitized, so allow the fields your workflow requires. Only explicitly allowed top-level scalars are captured; nested values become `[REDACTED]`. Credential-like field names are always excluded. Excluded input fields cannot be regression-checked.
 
-New recordings are schema v2. They store a SHA-256 identity of the allowlist configuration and an optional static source label (`new Recorder(path, tool, policy, "my-workflow")`). Replay rejects policy changes and recordings without a valid closed-session marker before executing your workflow. Closing a recording is not proof of business success. Existing v1 fixtures remain readable with policy/completeness checks unavailable.
+New recordings are schema v2. The hardened `scalar-v2` policy deliberately rejects earlier v2 fingerprints; [migration details](docs/SPRING_AI.md#policy-hardening-migration) explain why fixtures must be reviewed and re-recorded. They store a SHA-256 identity of the allowlist configuration and an optional static source label (`new Recorder(path, tool, policy, "my-workflow")`). Replay rejects policy changes and recordings without a valid closed-session marker before executing your workflow. Closing a recording is not proof of business success. Existing v1 fixtures remain readable with policy/completeness checks unavailable.
 
 Recorded exceptions use `Replay.RecordedToolException.originalType()`, not the original Java subclass. Normalize errors in a domain adapter when business code branches on exception type. The executable [retry example](examples/RetryRegression.java) shows this explicitly.
 
@@ -125,7 +127,9 @@ mvn test
 
 [RegressionJUnitTest](src/test/java/dev/tooltape/RegressionJUnitTest.java) contains a checked-in failure fixture, complete replay assertion and changed-argument failure. `mvn install` installs the library locally for another Maven project; coordinates are `dev.tooltape:tooltape:0.2.0` and are **not** remotely published.
 
-[Spring AI / kewei-ai-agent adapter guide →](docs/SPRING_AI.md)
+[Verified Spring AI / kewei-ai-agent integration →](docs/SPRING_AI.md)
+
+The optional application adapter is merged and tested through its real `think → act` dispatch with a fake model: 22 focused integration tests and packaging passed. It stays off by default, pins ToolTape source, preserves ToolContext in memory and fails clearly if output was not captured. It is not a separately published framework module.
 
 ## Inspect and compare
 
@@ -145,17 +149,19 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Verification
 
-- Local Linux/JDK 21: **45 dependency-free acceptance checks + 13 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998596): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 170 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619451): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
 
+- Hardening: normalized credential keys, bounded exponent expansion/node counts, preflight input budgets and owner-only new POSIX recordings
+- Real opt-in kewei-ai-agent integration, with reviewed-output capture and no live callback during replay
 - Policy-bound v2 recording sessions, explicit source labels and close markers; incomplete/mismatched-policy replay fails before calls
 - Backward-compatible v1 reading, clear legacy/incomplete states in CLI and viewer
 - RFC 6901 JSON-pointer locations for the first differing input/output
 - Real desktop/mobile Chromium tests and screenshot provenance generated in CI
-- Deterministic JAR timestamps, rebuild byte-comparison and checksummed prerelease artifacts
+- Deterministic JAR timestamps, rebuild byte-comparison and checksummed CI distribution artifacts
 - Pinned-source integration route for the actual Spring AI project; no fake Maven Central coordinates
 
 ### v0.1 foundation
