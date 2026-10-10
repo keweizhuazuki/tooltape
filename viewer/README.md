@@ -37,6 +37,10 @@ Actual synthetic nine-call recording: the rocket query finds three payloads whil
 
 These are targeted keyboard behaviors verified across the configured desktop/mobile-emulated browser projects. They are not a full accessibility audit or screen-reader compatibility certification.
 
+![Direct keyboard routes in the actual Chromium viewer](../docs/images/viewer-keyboard-shortcuts.png)
+
+A synthetic 501-call tape shows page 2 while retaining call 500 in the inspector. The native shortcuts avoid traversing all 250 cards. [Capture provenance](../docs/images/viewer-keyboard-shortcuts.json); control focus is cleared before capture, while focus/outline behavior is checked separately in all five browser projects.
+
 ## Text contrast
 
 Small supporting text uses `#87948f` rather than the former `#65716e`. On the selected timeline background this raises the computed contrast ratio from about 3.04:1 to 4.89:1; on the standard panel it rises from about 3.56:1 to 5.72:1. The dark palette, primary text and status colors are retained.
@@ -113,7 +117,7 @@ node viewer/test-interactions.cjs
 
 `test-interactions.cjs` executes that same script against a small DOM model and checks opening files, visible schema/completeness/provenance, policy mismatch warnings, error filtering, search reset, divergence inspection, missing calls, inline errors, interrupted and stale-read races, the file-size limit, and text-only rendering of HTML-like payloads. These are **not browser-rendering or accessibility tests**.
 
-For real offline Chromium/Firefox/WebKit interactions, responsive-layout assertions, and baseline/diff/mobile screenshots, see [the browser-check instructions](browser-tests/README.md). The pinned development-only Playwright suite runs in [the browser CI workflow](../.github/workflows/browser.yml). It opens the same HTML directly from disk and uploads real screenshots with source/fixture provenance. [Verified five-project CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38067175946) passed 188 tests (two duplicate mobile screenshot tests skipped), including 50,000-call last-divergence navigation. The selected real Chromium desktop/mobile screenshots were visually reviewed. The Unicode search capture comes from this run; each other published screenshot links its own exact run in its provenance.
+For real offline Chromium/Firefox/WebKit interactions, responsive-layout assertions, and baseline/diff/mobile screenshots, see [the browser-check instructions](browser-tests/README.md). The pinned development-only Playwright suite runs in [the browser CI workflow](../.github/workflows/browser.yml). It opens the same HTML directly from disk and uploads real screenshots with source/fixture provenance. [Verified five-project CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38068578529) passed 218 tests (two duplicate mobile screenshot tests skipped), including 50,000-call last-divergence navigation. The selected real Chromium desktop/mobile screenshots were visually reviewed. The keyboard-shortcuts, session and mobile captures come from this run; each other published screenshot links its own exact run in its provenance.
 
 ## Implementation and next verification
 
