@@ -19,6 +19,60 @@ const calls = page => page.locator('#timeline button[data-position]');
 const callAt = (page, position) => page.locator('#timeline button[data-position="' + position + '"]');
 const previousPage = page => page.getByRole('button', { name: 'Previous page', exact: true });
 const nextPage = page => page.getByRole('button', { name: 'Next page', exact: true });
+const skipPages = page => page.getByRole('button', { name: 'Skip to page controls', exact: true });
+const skipDetails = page => page.getByRole('button', { name: 'Skip to call details', exact: true });
+
+async function expectVisibleKeyboardFocus(locator) {
+  await expect(locator).toBeFocused();
+  await expect(locator).toBeVisible();
+  await expect(locator).toBeInViewport();
+  const focus = await locator.evaluate(element => {
+    const style = getComputedStyle(element);
+    return {
+      visible: element.matches(':focus-visible'),
+      outlineStyle: style.outlineStyle,
+      outlineWidth: parseFloat(style.outlineWidth),
+      outlineColor: style.outlineColor
+    };
+  });
+  expect(focus.visible, 'keyboard focus is visibly indicated').toBe(true);
+  expect(focus.outlineStyle, 'focus has a real outline').not.toBe('none');
+  expect(focus.outlineWidth, 'focus outline is at least 2px').toBeGreaterThanOrEqual(2);
+  expect(focus.outlineColor, 'focus outline is not transparent').not.toMatch(/^(transparent|rgba\([^)]*,\s*0\))$/);
+}
+
+async function passNativeTimelineStop(page, key) {
+  // Firefox can put the overflowing list itself in the native Tab sequence.
+  // Permit only that exact, actually overflowing container, never an arbitrary
+  // extra stop or a direct focus jump that could hide a long keyboard path.
+  if (await page.locator('#timeline').evaluate(element => element === document.activeElement)) {
+    expect(await page.locator('#timeline').evaluate(element => element.scrollHeight > element.clientHeight),
+      'the native timeline Tab stop belongs to an overflowing scroll container').toBe(true);
+    await page.keyboard.press(key);
+  }
+}
+
+async function shortcutFromFirstCall(page, destination) {
+  await expect(calls(page).first()).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await passNativeTimelineStop(page, 'Shift+Tab');
+  await expectVisibleKeyboardFocus(skipDetails(page));
+  if (destination === 'pages') {
+    await page.keyboard.press('Shift+Tab');
+    await expectVisibleKeyboardFocus(skipPages(page));
+  }
+}
+
+async function detailsFromFilters(page, key) {
+  await page.getByRole('searchbox').focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Errors only', { exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expectVisibleKeyboardFocus(skipDetails(page));
+  await page.keyboard.press(key);
+  await expectVisibleKeyboardFocus(page.locator('#inspector'));
+}
+
 
 async function expectTimelinePage(page, start, end, total, firstPosition = start - 1, lastPosition = end - 1) {
   const count = total ? end - start + 1 : 0;
@@ -739,60 +793,226 @@ test('a stale real-file read cannot overwrite a newer selection', async ({ page 
   await expect(calls(page).first()).toHaveAccessibleName('Call 0: newer.run, OK');
 });
 
-for (const count of [251, 501]) {
+for (const count of [250, 251, 501]) {
   for (const key of ['Enter', 'Space']) {
-    test(`${key} pagination replaces bounded pages and keeps focus and Tab order across ${count} calls`, async ({ page }) => {
+    test(`${key} short keyboard routes preserve bounded pages and selection across ${count} calls`, async ({ page, browser }, testInfo) => {
       const rows = Array.from({ length: count }, (_, index) => ({ name: 'step.' + index }));
-      await page.locator('#open-file').setInputFiles(file('many.tape', tape(rows)));
+      const primary = file(`synthetic-${count}-keyboard.tape`, tape(rows));
+      await page.locator('#open-file').setInputFiles(primary);
       await expect(page.locator('#stat-calls')).toHaveText(String(count));
       await expectTimelinePage(page, 1, 250, count);
-      await callAt(page, 249).focus();
+      await expect(page.getByRole('group', { name: 'Timeline shortcuts', exact: true })).toBeVisible();
+      await expect(skipDetails(page)).toHaveAttribute('id', 'skip-details');
+      await expect(skipDetails(page)).toHaveAttribute('type', 'button');
+      await expect(page.locator('#inspector')).toHaveAttribute('tabindex', '-1');
+      expect(await page.locator('#timeline').evaluate(element => ({
+        tag: element.tagName,
+        shortcutIds: [...element.previousElementSibling.querySelectorAll('button')].map(button => button.id),
+        callSemantics: [...element.children].every(item => item.tagName === 'LI' &&
+          item.firstElementChild.tagName === 'BUTTON' && item.firstElementChild.tabIndex === 0 &&
+          item.firstElementChild.hasAttribute('aria-pressed'))
+      }))).toEqual({ tag: 'OL', shortcutIds: ['skip-pages', 'skip-details'], callSemantics: true });
+
+      // The only initial focus placement is the first row. Every shortcut and
+      // page change below is reached by actual keyboard traversal, never by
+      // focusing call 249/499 or jumping directly to a pager button.
+      await calls(page).first().focus();
       await page.keyboard.press('Tab');
-      // Disabled Previous is skipped on the first page.
-      await expect(nextPage(page)).toBeFocused();
+      await expect(callAt(page, 1)).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(callAt(page, 0)).toBeFocused();
+      await shortcutFromFirstCall(page, 'details');
+      await page.keyboard.press(key);
+      await expectVisibleKeyboardFocus(page.locator('#inspector'));
+      await expect(page.locator('#inspector h2')).toHaveText('step.0');
+      await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
+      await page.keyboard.press('Tab');
+      await expect(page.getByLabel('input', { exact: true })).toBeFocused();
+
+      if (count === 250) {
+        await expect(page.locator('#skip-pages')).toBeHidden();
+        await calls(page).first().focus();
+        await shortcutFromFirstCall(page, 'details');
+        await page.keyboard.press('Shift+Tab');
+        await expect(page.getByLabel('Errors only', { exact: true })).toBeFocused();
+        await expectTimelinePage(page, 1, 250, count);
+        return;
+      }
+
+      await expect(skipPages(page)).toHaveAttribute('id', 'skip-pages');
+      await expect(skipPages(page)).toHaveAttribute('type', 'button');
+      await calls(page).first().focus();
+      await shortcutFromFirstCall(page, 'pages');
+      await page.keyboard.press(key);
+      // Previous is disabled on the first page, so the route chooses Next.
+      await expectVisibleKeyboardFocus(nextPage(page));
       await page.keyboard.press(key);
       await expectTimelinePage(page, 251, Math.min(500, count), count);
-      await expect(callAt(page, 250)).toBeFocused();
+      await expectVisibleKeyboardFocus(callAt(page, 250));
       await expect(callAt(page, 250)).toHaveAttribute('aria-pressed', 'false');
-      await expect(callAt(page, 0)).toHaveCount(0);
       await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+      await expect(page.locator('#inspector h2')).toHaveText('step.0');
+      await shortcutFromFirstCall(page, 'details');
+      await page.keyboard.press(key);
+      await expectVisibleKeyboardFocus(page.locator('#inspector'));
       await expect(page.locator('#inspector h2')).toHaveText('step.0');
 
       if (count === 501) {
+        await calls(page).first().focus();
+        await shortcutFromFirstCall(page, 'pages');
+        await page.keyboard.press(key);
+        // Both are enabled on the middle page; Previous is the first choice.
+        await expectVisibleKeyboardFocus(previousPage(page));
         await page.keyboard.press('Tab');
-        await expect(callAt(page, 251)).toBeFocused();
-        await callAt(page, 499).focus();
-        await page.keyboard.press('Tab');
-        await expect(previousPage(page)).toBeFocused();
-        await page.keyboard.press('Tab');
-        await expect(nextPage(page)).toBeFocused();
+        await expectVisibleKeyboardFocus(nextPage(page));
         await page.keyboard.press(key);
         await expectTimelinePage(page, 501, 501, count);
-        await expect(callAt(page, 500)).toBeFocused();
-        await expect(callAt(page, 500)).toHaveAttribute('aria-pressed', 'false');
-        await expect(page.locator('#inspector h2')).toHaveText('step.0');
+        await expectVisibleKeyboardFocus(callAt(page, 500));
+      } else {
+        await calls(page).first().focus();
       }
 
+      // Select the final call, then keep inspecting it after paging away.
+      await page.keyboard.press(key);
+      await expect(callAt(page, count - 1)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#inspector h2')).toHaveText('step.' + (count - 1));
+      await shortcutFromFirstCall(page, 'details');
+      await page.keyboard.press(key);
+      await expectVisibleKeyboardFocus(page.locator('#inspector'));
+      await expect(page.locator('#inspector h2')).toHaveText('step.' + (count - 1));
+      await calls(page).first().focus();
+      await shortcutFromFirstCall(page, 'pages');
+      await page.keyboard.press(key);
+      await expectVisibleKeyboardFocus(previousPage(page));
+      await expect(nextPage(page)).toBeDisabled();
       await page.keyboard.press('Tab');
-      await expect(previousPage(page)).toBeFocused();
-      await page.keyboard.press('Tab');
-      // Disabled Next is skipped on the final page.
+      // Disabled Next and tabindex=-1 inspector are skipped during normal Tab.
       await expect(page.getByLabel('input', { exact: true })).toBeFocused();
       await page.keyboard.press('Shift+Tab');
       await expect(previousPage(page)).toBeFocused();
       await page.keyboard.press(key);
       await expectTimelinePage(page, count === 501 ? 251 : 1, count === 501 ? 500 : 250, count);
       await expect(calls(page).first()).toBeFocused();
+      await expect(callAt(page, count - 1)).toHaveCount(0);
+      await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+      await shortcutFromFirstCall(page, 'details');
+      await page.keyboard.press(key);
+      await expectVisibleKeyboardFocus(page.locator('#inspector'));
+      await expect(page.locator('#inspector h2')).toHaveText('step.' + (count - 1));
+
+      if (count === 501 && key === 'Enter' && testInfo.project.name === 'desktop-chromium') {
+        const directory = path.join(__dirname, 'artifacts/screenshots', testInfo.project.name);
+        await fs.mkdir(directory, { recursive: true });
+        const fixturePath = path.join(directory, primary.name);
+        await fs.writeFile(fixturePath, primary.buffer);
+        await testInfo.attach(primary.name, { path: fixturePath, contentType: 'text/plain' });
+        const evidence = {
+          kind: 'deterministic synthetic TOOLTAPE v1, public file-input loading',
+          generator: 'viewer/browser-tests/viewer.spec.cjs',
+          callCount: count,
+          primary: { name: primary.name, bytes: primary.buffer.length,
+            sha256: createHash('sha256').update(primary.buffer).digest('hex') },
+          displayedMatchingRange: [251, 500],
+          renderedCallCards: await calls(page).count(),
+          selectedPosition: 500,
+          selectedCallIsOffPage: true,
+          pageSizeLimit: 250,
+          captureNote: 'The shared capture helper blurs focus; focus-visible and outline assertions run separately.'
+        };
+        await capture(page, browser, testInfo, 'viewer-keyboard-shortcuts',
+          'Deterministic synthetic 501-call v1 tape; middle 250-call page, visible keyboard shortcuts, selected off-page call 500 retained in details.',
+          fixturePath, evidence);
+      }
+
       if (count === 501) {
-        await previousPage(page).focus();
+        await calls(page).first().focus();
+        await shortcutFromFirstCall(page, 'pages');
+        await page.keyboard.press(key);
+        await expect(previousPage(page)).toBeFocused();
         await page.keyboard.press(key);
       }
       await expectTimelinePage(page, 1, 250, count);
-      await expect(callAt(page, 0)).toBeFocused();
-      await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
-      await expect(page.locator('#inspector h2')).toHaveText('step.0');
+      await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+      await expect(page.locator('#inspector h2')).toHaveText('step.' + (count - 1));
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+        'visible shortcuts do not create horizontal page overflow').toBe(true);
     });
   }
+}
+
+for (const key of ['Enter', 'Space']) {
+  test(`${key} details shortcut stays usable across filtered pagination boundaries and no results`, async ({ page }) => {
+    const rows = Array.from({ length: 501 }, (_, index) => ({
+      name: (index < 251 ? 'match.' : 'other.') + index,
+      input: index < 250 ? '{"group":"first-250"}' : '{}'
+    }));
+    await page.locator('#open-file').setInputFiles(file('filtered-shortcuts.tape', tape(rows)));
+    const search = page.getByRole('searchbox');
+    await search.fill('match.');
+    await expectTimelinePage(page, 1, 250, 251);
+    await calls(page).first().focus();
+    await shortcutFromFirstCall(page, 'pages');
+    await page.keyboard.press(key);
+    await expect(nextPage(page)).toBeFocused();
+    await page.keyboard.press(key);
+    await expectTimelinePage(page, 251, 251, 251);
+    await expect(callAt(page, 250)).toBeFocused();
+    await page.keyboard.press(key);
+    await expect(callAt(page, 250)).toHaveAttribute('aria-pressed', 'true');
+
+    await search.fill('first-250');
+    await expectTimelinePage(page, 1, 250, 250);
+    await expect(page.locator('#skip-pages')).toBeHidden();
+    await calls(page).first().focus();
+    await shortcutFromFirstCall(page, 'details');
+    await page.keyboard.press(key);
+    await expectVisibleKeyboardFocus(page.locator('#inspector'));
+    await expect(page.locator('#inspector h2')).toHaveText('match.250');
+    await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+
+    await search.fill('no-recorded-call-matches');
+    await expectTimelinePage(page, 0, 0, 0);
+    await expect(page.locator('#skip-pages')).toBeHidden();
+    await expect(page.locator('#timeline')).toContainText('No calls match these filters.');
+    await detailsFromFilters(page, key);
+    await expect(page.locator('#inspector h2')).toHaveText('match.250');
+
+    await search.fill('');
+    await expectTimelinePage(page, 1, 250, 501);
+    await page.getByLabel('Errors only', { exact: true }).focus();
+    await page.keyboard.press('Space');
+    await expectTimelinePage(page, 0, 0, 0);
+    await expect(page.locator('#skip-pages')).toBeHidden();
+    await page.keyboard.press('Tab');
+    await expectVisibleKeyboardFocus(skipDetails(page));
+    await page.keyboard.press(key);
+    await expectVisibleKeyboardFocus(page.locator('#inspector'));
+    await expect(page.locator('#inspector h2')).toHaveText('match.250');
+  });
+
+  test(`${key} details shortcut reaches loaded-empty and missing-primary comparison explanations`, async ({ page }) => {
+    await expect(page.locator('#skip-details')).toBeHidden();
+    await expect(page.locator('#skip-pages')).toBeHidden();
+    await page.locator('#open-file').setInputFiles(file('empty-shortcuts.tape', tape([])));
+    await expectTimelinePage(page, 0, 0, 0);
+    await expect(page.locator('#skip-pages')).toBeHidden();
+    await expect(skipDetails(page)).toBeVisible();
+    await detailsFromFilters(page, key);
+    await expect(page.locator('#inspector')).toHaveAttribute('tabindex', '-1');
+    await expect(page.locator('#inspector')).toContainText('Select a recorded call to inspect its input and output.');
+
+    await page.locator('#compare-file').setInputFiles(file('comparison-only.tape', tape([
+      { name: 'comparison.only', input: '{"source":"comparison"}' }
+    ])));
+    await expect(page.locator('#compare-title')).toContainText('call missing from primary');
+    await detailsFromFilters(page, key);
+    await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+    await expect(page.getByLabel('comparison input', { exact: true })).toContainText('comparison');
+    await expectTimelinePage(page, 0, 0, 0);
+    await expect(page.locator('#skip-pages')).toBeHidden();
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('comparison input', { exact: true })).toBeFocused();
+  });
 }
 
 test('Escape without filters preserves the focused row and a different selected row', async ({ page }) => {
@@ -848,16 +1068,11 @@ for (const focusedControl of ['search', 'errors-only']) {
     if (focusedControl === 'search') {
       await expect(page.locator('#errors-only')).toBeFocused();
     } else {
-      // Some engines give overflowing containers their own native Tab stop.
-      // Accept only this exact container, then require the next Tab to enter
-      // its first call. Never skip an arbitrary focus destination or force focus.
-      if (firstTabTarget.id === 'timeline') {
-        const timeline = page.locator('#timeline');
-        await expect(timeline).toBeFocused();
-        expect(await timeline.evaluate(element => element.scrollHeight > element.clientHeight),
-          'the native timeline Tab stop belongs to an overflowing scroll container').toBe(true);
-        await page.keyboard.press('Tab');
-      }
+      await expectVisibleKeyboardFocus(skipPages(page));
+      await page.keyboard.press('Tab');
+      await expectVisibleKeyboardFocus(skipDetails(page));
+      await page.keyboard.press('Tab');
+      await passNativeTimelineStop(page, 'Tab');
       await expect(calls(page).first()).toBeFocused();
       await page.keyboard.press('Tab');
       await expect(previousPage(page)).toBeFocused();

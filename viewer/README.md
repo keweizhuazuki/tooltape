@@ -30,6 +30,7 @@ Actual synthetic nine-call recording: the rocket query finds three payloads whil
 ## Keyboard controls
 
 - Tab reaches visible **Open tape** / **Compare tape** buttons, without stopping on the invisible file inputs. Enter or Space opens the normal browser file picker.
+- Before the call list, **Skip to page controls** reaches the first enabled pagination button; it appears only when multiple matching pages exist. **Skip to call details** focuses the labeled inspector, including its empty or missing-primary explanation. Both keep the current selection and filters. From the first call, Shift+Tab reaches these shortcuts without traversing the other 249 cards. Enter or Space activates either native button; normal Tab navigation remains available.
 - Activate **Previous page** or **Next page** to change pages; focus moves to the first call on that page while the selected inspection stays unchanged. Boundary buttons are disabled; controls are hidden when no second page exists.
 - **Esc** clears active filters while keeping a focused call visible, or otherwise opening the selected call’s page. Filter controls retain focus. If a focused page button becomes unavailable, focus returns to a visible call. With no active filters, Esc leaves the current page, focus and selection unchanged.
 - Activating **Clear comparison** returns focus to **Compare tape** and announces that the comparison was cleared. The primary selection remains intact.
@@ -116,6 +117,6 @@ For real offline Chromium/Firefox/WebKit interactions, responsive-layout asserti
 
 ## Implementation and next verification
 
-Completed: Unicode/emoji search with single-decoded string matching and unchanged canonical comparison; bounded 250-call pages, late-divergence navigation and truthful ranges; improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
+Completed: native skip controls for direct page/details keyboard access; Unicode/emoji search with single-decoded string matching and unchanged canonical comparison; bounded 250-call pages, late-divergence navigation and truthful ranges; improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
 
 Next verification: keep screenshots synchronized with viewer changes; add physical-device testing, native Safari/iOS coverage and an assistive-technology audit.
