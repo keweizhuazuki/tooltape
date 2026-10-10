@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 /** Dependency-free acceptance tests of the actual CLI process, including its exit status. */
 public final class CliProcessTest {
@@ -36,7 +37,8 @@ public final class CliProcessTest {
           "INVALID_TAPE", "Tape is malformed or unsupported.",
           "IO_ERROR", "Tape could not be read.",
           "INCOMPLETE_TAPE", "Tape has no verified completion marker.",
-          "POLICY_MISMATCH", "Tapes use different capture policies.");
+          "POLICY_MISMATCH", "Tapes use different capture policies.",
+          "LEGACY_TAPE", "Legacy tape rejected by --require-v2.");
   private static final int MAX_OUTPUT_BYTES = 64 * 1024;
   private static int checks;
   private static int processes;
@@ -65,6 +67,7 @@ public final class CliProcessTest {
       test.invalidArguments();
       test.hostileArguments();
       test.humanCommands();
+      test.flagNamedFiles();
       System.out.println(
           "PASS: "
               + checks
@@ -72,7 +75,7 @@ public final class CliProcessTest {
               + processes
               + " processes and "
               + directRuns
-              + " direct invocations (JSON, exits, compatibility, privacy, errors)");
+              + " direct invocations (JSON, require-v2, exits, compatibility, privacy, errors)");
     } finally {
       try (var paths = Files.walk(directory)) {
         for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
@@ -149,6 +152,63 @@ public final class CliProcessTest {
     Map<String, Object> recordedError =
         report(0, "validate", "valid", "validate", "--json", exceptionPath.toString());
     summary(recordedError.get("summary"), Tape.read(exceptionPath));
+
+    equal(valid, requireV2Validation(closed, tape), "Closed v2 report remains unchanged");
+    equal(emptyReport, requireV2Validation(emptyPath, empty), "Empty closed v2 remains valid");
+    equal(
+        recordedError,
+        requireV2Validation(exceptionPath, Tape.read(exceptionPath)),
+        "Recorded errors do not make a closed session invalid");
+    equal(
+        unfinished,
+        requireV2Validation(incomplete, Tape.read(incomplete)),
+        "Incomplete v2 report remains unchanged");
+    requireV2Validation(legacy, new Tape(tape.events()));
+    Tape emptyLegacy = new Tape(List.of());
+    requireV2Validation(writeTape("emptyLegacy", emptyLegacy), emptyLegacy);
+
+    // This gate verifies format/session evidence, not a fingerprint's capture algorithm or trust.
+    Tape unknownPolicy =
+        new Tape(tape.events(), new Tape.Metadata("sha256:" + "a".repeat(64), SOURCE), true);
+    Path unknownPolicyPath = writeTape("unknownPolicy", unknownPolicy);
+    Map<String, Object> unknownPolicyReport =
+        report(0, "validate", "valid", "validate", "--json", unknownPolicyPath.toString());
+    equal(
+        unknownPolicyReport,
+        requireV2Validation(unknownPolicyPath, unknownPolicy),
+        "Requiring v2 does not establish whether a capture policy is current or trusted");
+    diff(
+        unknownPolicyPath,
+        unknownPolicy,
+        unknownPolicyPath,
+        unknownPolicy,
+        0,
+        "verified",
+        null,
+        -1);
+  }
+
+  private Map<String, Object> requireV2Validation(Path path, Tape value) throws Exception {
+    boolean legacy = value.version() == 1;
+    int exitCode = legacy || !value.complete() ? 2 : 0;
+    Map<String, Object> report =
+        report(
+            exitCode,
+            "validate",
+            exitCode == 0 ? "valid" : "error",
+            "validate",
+            "--json",
+            "--require-v2",
+            path.toString());
+    if (exitCode == 2) keys(report, "summary", "warnings", "error");
+    else keys(report, "summary", "warnings");
+    summary(report.get("summary"), value);
+    equal(
+        legacy ? List.of("LEGACY_UNVERIFIED") : List.of(),
+        report.get("warnings"),
+        "Required-v2 validation preserves legacy warnings");
+    if (exitCode == 2) error(report, legacy ? "LEGACY_TAPE" : "INCOMPLETE_TAPE");
+    return report;
   }
 
   private void semanticDiffReports() throws Exception {
@@ -243,6 +303,16 @@ public final class CliProcessTest {
         "unverified",
         "input",
         1);
+    diff(legacy, old, writeTape("mixedChanged", changed), changed, 1, "unverified", "input", 1);
+    diff(
+        closed,
+        tape,
+        writeTape("mixedLegacyChanged", oldChanged),
+        oldChanged,
+        1,
+        "unverified",
+        "input",
+        1);
 
     Tape.Metadata otherPolicy = new Tape.Metadata(CapturePolicy.safe().identifier(), SOURCE);
     Tape mismatch = new Tape(tape.events(), otherPolicy, true);
@@ -277,6 +347,7 @@ public final class CliProcessTest {
         diff(incomplete, unfinished, incomplete, unfinished, 2, "incomplete", null, -1),
         "INCOMPLETE_TAPE");
     error(diff(legacy, old, incomplete, unfinished, 2, "incomplete", null, -1), "INCOMPLETE_TAPE");
+    error(diff(incomplete, unfinished, legacy, old, 2, "incomplete", null, -1), "INCOMPLETE_TAPE");
     Tape unfinishedMismatch = new Tape(changed.events(), otherPolicy, false);
     error(
         diff(
@@ -296,6 +367,8 @@ public final class CliProcessTest {
     fileError("IO_ERROR", "validate", "--json", missing.toString());
     fileError("IO_ERROR", "diff", "--json", missing.toString(), closed.toString());
     fileError("IO_ERROR", "diff", "--json", closed.toString(), missing.toString());
+    fileError("IO_ERROR", "diff", "--json", legacy.toString(), missing.toString());
+    fileError("IO_ERROR", "diff", "--json", missing.toString(), legacy.toString());
     fileError("IO_ERROR", "validate", "--json", directory.toString());
     fileError("IO_ERROR", "diff", "--json", directory.toString(), closed.toString());
     fileError("IO_ERROR", "diff", "--json", closed.toString(), directory.toString());
@@ -330,6 +403,8 @@ public final class CliProcessTest {
     }
     fileError("INVALID_TAPE", "diff", "--json", malformedPath.toString(), closed.toString());
     fileError("INVALID_TAPE", "diff", "--json", closed.toString(), malformedPath.toString());
+    fileError("INVALID_TAPE", "diff", "--json", legacy.toString(), malformedPath.toString());
+    fileError("INVALID_TAPE", "diff", "--json", malformedPath.toString(), legacy.toString());
     Files.write(malformedPath, new byte[] {(byte) 0xff, '\n'});
     fileError("INVALID_TAPE", "validate", "--json", malformedPath.toString());
   }
@@ -352,7 +427,39 @@ public final class CliProcessTest {
             new String[] {"inspect", "--json", closed.toString()},
             new String[] {"--json", "validate", closed.toString()},
             new String[] {"PRIVATE_UNKNOWN_COMMAND_", "--json"},
-            new String[] {"--json"})) {
+            new String[] {"--json"},
+            new String[] {"validate", "--json", "--require-v2"},
+            new String[] {"validate", "--json", "--require-v2", "--require-v2"},
+            new String[] {"validate", "--json", "--require-v2", "--json"},
+            new String[] {"validate", "--require-v2", "--json", closed.toString()},
+            new String[] {"validate", "--json", closed.toString(), "--require-v2"},
+            new String[] {"validate", "--json", "--require-v2", closed.toString(), "--require-v2"},
+            new String[] {
+              "validate", "--json", "--require-v2", closed.toString(), "PRIVATE_EXTRA_ARGUMENT_"
+            },
+            new String[] {"diff", "--json", "--require-v2"},
+            new String[] {"diff", "--json", "--require-v2", closed.toString()},
+            new String[] {"diff", "--json", "--require-v2", "--require-v2", closed.toString()},
+            new String[] {"diff", "--json", "--require-v2", closed.toString(), "--require-v2"},
+            new String[] {"diff", "--json", "--require-v2", "--json", closed.toString()},
+            new String[] {"diff", "--json", "--require-v2", closed.toString(), "--json"},
+            new String[] {"diff", "--json", closed.toString(), "--require-v2"},
+            new String[] {"diff", "--require-v2", "--json", closed.toString(), closed.toString()},
+            new String[] {"diff", "--json", closed.toString(), "--require-v2", closed.toString()},
+            new String[] {"diff", "--json", closed.toString(), closed.toString(), "--require-v2"},
+            new String[] {
+              "diff",
+              "--json",
+              "--require-v2",
+              closed.toString(),
+              closed.toString(),
+              "PRIVATE_EXTRA_ARGUMENT_"
+            },
+            new String[] {"inspect", "--json", "--require-v2", closed.toString()},
+            new String[] {"--require-v2", "validate", "--json", closed.toString()},
+            new String[] {"--json", "--require-v2", "validate", closed.toString()},
+            new String[] {"PRIVATE_UNKNOWN_COMMAND_", "--json", "--require-v2"},
+            new String[] {"--help", "--json", "--require-v2"})) {
       String command = Set.of("validate", "diff").contains(arguments[0]) ? arguments[0] : null;
       Map<String, Object> report = report(2, command, "error", arguments);
       keys(report, "error");
@@ -369,8 +476,22 @@ public final class CliProcessTest {
             new String[] {"PRIVATE_UNKNOWN_COMMAND_\"\n", "--json"},
             new String[] {"PRIVATE_UNKNOWN_COMMAND_\"\\\n\r\t\u0001", "--json"},
             new String[] {"validate", "--json", "PRIVATE_INVALID_PATH_\u0000\"\n"},
+            new String[] {"validate", "--json", "--require-v2", "PRIVATE_INVALID_PATH_\u0000\"\n"},
+            new String[] {
+              "diff", "--json", "--require-v2", legacy.toString(), "PRIVATE_INVALID_PATH_\u0000\"\n"
+            },
+            new String[] {
+              "diff", "--json", "--require-v2", "PRIVATE_INVALID_PATH_\u0000\"\n", legacy.toString()
+            },
             new String[] {
               "validate", "--json", closed.toString(), "PRIVATE_EXTRA_ARGUMENT_\"\\\n\r\t"
+            },
+            new String[] {
+              "validate",
+              "--json",
+              "--require-v2",
+              closed.toString(),
+              "PRIVATE_EXTRA_ARGUMENT_\"\\\n\r\t"
             })) {
       ByteArrayOutputStream stdout = new ByteArrayOutputStream();
       ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -380,7 +501,7 @@ public final class CliProcessTest {
         exitCode = Main.run(arguments, out, err);
         directRuns++;
       }
-      String command = "validate".equals(arguments[0]) ? "validate" : null;
+      String command = Set.of("validate", "diff").contains(arguments[0]) ? arguments[0] : null;
       Map<String, Object> report =
           checkReport(
               new ProcessResult(
@@ -404,6 +525,14 @@ public final class CliProcessTest {
     ProcessResult validation = run("validate", closed.toString());
     equal(0, validation.exitCode(), "Human validation exit code");
     check(validation.stdout().startsWith("VALID:"), "Human validation text preserved");
+    ProcessResult oldValidation = run("validate", legacy.toString());
+    equal(0, oldValidation.exitCode(), "Human legacy validation remains accepted");
+    check(
+        oldValidation.stdout().contains("legacy policy/completion unverified"),
+        "Human legacy validation retains its warning");
+    ProcessResult oldMatch = run("diff", legacy.toString(), closed.toString());
+    equal(0, oldMatch.exitCode(), "Human legacy comparison remains accepted");
+    check(oldMatch.stdout().startsWith("MATCH:"), "Human legacy match text preserved");
     ProcessResult match = run("diff", closed.toString(), closed.toString());
     equal(0, match.exitCode(), "Human diff match exit code");
     check(match.stdout().startsWith("MATCH:"), "Human diff text preserved");
@@ -414,6 +543,66 @@ public final class CliProcessTest {
     ProcessResult usage = run("PRIVATE_UNKNOWN_COMMAND_");
     equal(2, usage.exitCode(), "Human misuse exit code");
     check(usage.stderr().contains("Usage:"), "Human usage remains on stderr");
+
+    for (String[] arguments :
+        List.of(
+            new String[] {"--help"},
+            new String[] {"--require-v2"},
+            new String[] {"validate", "--require-v2"},
+            new String[] {"validate", "--require-v2", legacy.toString()},
+            new String[] {"validate", legacy.toString(), "--require-v2"},
+            new String[] {"diff", "--require-v2", closed.toString()},
+            new String[] {"diff", "--require-v2", legacy.toString(), closed.toString()},
+            new String[] {"diff", legacy.toString(), "--require-v2"},
+            new String[] {"inspect", "--require-v2"},
+            new String[] {"inspect", "--require-v2", closed.toString()})) {
+      ProcessResult invalid = run(arguments);
+      equal(2, invalid.exitCode(), "Human flag misuse and existing help use exit 2");
+      equal("", invalid.stdout(), "Human usage leaves stdout empty");
+      equal(usage.stderr(), invalid.stderr(), "Usage is fixed and does not echo arguments");
+      check(
+          invalid.stderr().contains("validate --json [--require-v2] <file>"),
+          "Usage documents the validation flag position");
+      check(
+          invalid.stderr().contains("diff --json [--require-v2] <expected> <actual>"),
+          "Usage documents the comparison flag position");
+    }
+  }
+
+  private void flagNamedFiles() throws Exception {
+    Files.copy(closed, directory.resolve("--require-v2"));
+    String filename = "./--require-v2";
+    ProcessResult validation = runIn(directory, "validate", filename);
+    equal(0, validation.exitCode(), "Explicit relative path is not a human-mode flag");
+    check(validation.stdout().startsWith("VALID:"), "Flag-named file is validated");
+    equal("", validation.stderr(), "Flag-named file produces no diagnostics");
+    for (boolean requireV2 : List.of(false, true)) {
+      String[] arguments = {"validate", "--json", filename};
+      if (requireV2) arguments = withRequireV2(arguments);
+      Map<String, Object> report =
+          checkReport(runIn(directory, arguments), 0, "validate", "valid", arguments);
+      keys(report, "summary", "warnings");
+      summary(report.get("summary"), tape);
+      equal(List.of(), report.get("warnings"), "Flag-named v2 file has no warnings");
+
+      arguments = new String[] {"diff", "--json", filename, filename};
+      if (requireV2) arguments = withRequireV2(arguments);
+      report = checkReport(runIn(directory, arguments), 0, "diff", "match", arguments);
+      keys(
+          report,
+          "expected",
+          "actual",
+          "compatibility",
+          "eventsEqual",
+          "firstDivergence",
+          "warnings");
+      summary(report.get("expected"), tape);
+      summary(report.get("actual"), tape);
+      equal("verified", report.get("compatibility"), "Flag-named files remain comparable");
+      equal(true, report.get("eventsEqual"), "Flag-named files have equal events");
+      equal(null, report.get("firstDivergence"), "Flag-named files have no divergence");
+      equal(List.of(), report.get("warnings"), "Flag-named v2 comparison has no warnings");
+    }
   }
 
   private Map<String, Object> diff(
@@ -426,16 +615,50 @@ public final class CliProcessTest {
       String field,
       int eventIndex)
       throws Exception {
-    String outcome = exitCode == 2 ? "error" : field == null ? "match" : "divergence";
     Map<String, Object> report =
-        report(
+        diff(
+            false,
+            expectedPath,
+            expected,
+            actualPath,
+            actual,
             exitCode,
-            "diff",
-            outcome,
-            "diff",
-            "--json",
-            expectedPath.toString(),
-            actualPath.toString());
+            compatibility,
+            field,
+            eventIndex);
+    Map<String, Object> required =
+        diff(
+            true,
+            expectedPath,
+            expected,
+            actualPath,
+            actual,
+            exitCode,
+            compatibility,
+            field,
+            eventIndex);
+    if (!"unverified".equals(compatibility))
+      equal(report, required, "Requiring v2 preserves reports without an eligible legacy input");
+    return report;
+  }
+
+  private Map<String, Object> diff(
+      boolean requireV2,
+      Path expectedPath,
+      Tape expected,
+      Path actualPath,
+      Tape actual,
+      int exitCode,
+      String compatibility,
+      String field,
+      int eventIndex)
+      throws Exception {
+    boolean rejectLegacy = requireV2 && "unverified".equals(compatibility);
+    if (rejectLegacy) exitCode = 2;
+    String outcome = exitCode == 2 ? "error" : field == null ? "match" : "divergence";
+    String[] arguments = {"diff", "--json", expectedPath.toString(), actualPath.toString()};
+    if (requireV2) arguments = withRequireV2(arguments);
+    Map<String, Object> report = report(exitCode, "diff", outcome, arguments);
     List<String> fields =
         new ArrayList<>(
             List.of(
@@ -467,6 +690,7 @@ public final class CliProcessTest {
         expected.version() == 1 || actual.version() == 1 ? List.of("LEGACY_UNVERIFIED") : List.of(),
         report.get("warnings"),
         "Diff legacy warning");
+    if (rejectLegacy) error(report, "LEGACY_TAPE");
     return report;
   }
 
@@ -474,6 +698,14 @@ public final class CliProcessTest {
     Map<String, Object> report = report(2, args[0], "error", args);
     keys(report, "error");
     error(report, code);
+    Map<String, Object> required = report(2, args[0], "error", withRequireV2(args));
+    equal(report, required, "Requiring v2 preserves file-error precedence and report shape");
+  }
+
+  private static String[] withRequireV2(String... args) {
+    List<String> required = new ArrayList<>(Arrays.asList(args));
+    required.add(2, "--require-v2");
+    return required.toArray(String[]::new);
   }
 
   private void error(Map<String, Object> report, String code) {
@@ -554,8 +786,19 @@ public final class CliProcessTest {
   }
 
   private static ProcessResult run(String... args) throws Exception {
+    return runIn(null, args);
+  }
+
+  private static ProcessResult runIn(Path workingDirectory, String... args) throws Exception {
     Path java = Path.of(System.getProperty("java.home"), "bin", "java");
     if (!Files.isRegularFile(java)) java = java.resolveSibling("java.exe");
+    String separator = System.getProperty("path.separator");
+    String classpath =
+        String.join(
+            separator,
+            Arrays.stream(System.getProperty("java.class.path").split(Pattern.quote(separator), -1))
+                .map(entry -> Path.of(entry).toAbsolutePath().toString())
+                .toList());
     List<String> command =
         new ArrayList<>(
             List.of(
@@ -563,10 +806,12 @@ public final class CliProcessTest {
                 "-XX:-UsePerfData",
                 "-Dfile.encoding=UTF-8",
                 "-cp",
-                System.getProperty("java.class.path"),
+                classpath,
                 Main.class.getName()));
     command.addAll(Arrays.asList(args));
-    Process process = new ProcessBuilder(command).start();
+    ProcessBuilder builder = new ProcessBuilder(command);
+    if (workingDirectory != null) builder.directory(workingDirectory.toFile());
+    Process process = builder.start();
     processes++;
     ExecutorService readers =
         Executors.newFixedThreadPool(

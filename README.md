@@ -50,7 +50,7 @@ CI produces a verified JAR and SHA-256 checksums. It is not published on Maven C
 The tested v0.2 build can currently be downloaded from its successful CI run:
 
 ```sh
-gh run download 38036648099 --repo keweizhuazuki/tooltape --name tooltape-dist-62095438d459dc693ef946fa88b0bca0b6f95423
+gh run download 38040769746 --repo keweizhuazuki/tooltape --name tooltape-dist-b7e099e3267e946045618e543c8ae2850a0cb88f
 sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
@@ -103,6 +103,8 @@ java -jar target/tooltape.jar diff --json expected.tape actual.tape > report.jso
 ```
 
 JSON reports have a versioned contract and exit codes: **0** valid/matching, **1** first event divergence, **2** invalid input, incomplete session or incompatible v2 capture policies. Reports omit captured values, tool names, file paths and JSON key names, including on errors. Legacy v1 comparisons explicitly report unverified policy/completion. Human-readable commands remain unchanged and can expose recorded values.
+
+For v2-only CI jobs, add `--require-v2` immediately after `--json` in either command. Legacy inputs then fail with exit 2 and `LEGACY_TAPE`, while default behavior and the report v1 structure stay unchanged. This checks schema eligibility, not authenticity or business success.
 
 [Report schema, compatibility rules and shell examples →](docs/CLI_REPORTS.md)
 
@@ -160,11 +162,13 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Verification
 
-- Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 62 real CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/4/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; 164 real CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/9/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
+
+- Opt-in `--require-v2` gate for JSON validation/comparison, with safe legacy rejection and unchanged defaults
 
 - Cross-engine offline viewer checks with explicit Chromium/Firefox/WebKit projects and isolated screenshot provenance
 
@@ -195,7 +199,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Next upgrade
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
-2. Extend CI reports with opt-in strict rejection of legacy inputs and multi-fixture summaries while preserving the v1 report contract.
+2. Design multi-fixture CI summaries with bounded inputs, explicit aggregate exit semantics and a versioned report envelope.
 3. Extend cross-engine checks with assistive-technology review and physical-device testing; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.
