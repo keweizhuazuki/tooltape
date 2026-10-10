@@ -120,6 +120,135 @@ nodes.timeline.replaceChildren=function(...children){
  releaseCompare(new TextEncoder().encode(v2()).buffer);await pendingCompare;
  check(()=>assert.match(nodes['compare-note'].textContent,/new-compare.tape/));
  check(()=>assert.match(nodes['compare-context'].textContent,/new.source/));
+ // Exercise notice ownership through ordinary file-input changes, Clear comparison,
+ // and drops. Deferred file reads control ordering without replacing application code.
+ const settleFileRead=()=>new Promise(resolve=>setImmediate(resolve));
+ const chooseFile=async(input,selectedFile)=>{
+  nodes[input].files=[selectedFile];nodes[input].value=selectedFile.name;
+  nodes[input].fire('change',{target:nodes[input]});
+  check(()=>assert.equal(nodes[input].value,''));
+  await settleFileRead();
+ };
+ const deferredFile=name=>{
+  let resolve,reject;
+  const bytes=new Promise((yes,no)=>{resolve=yes;reject=no;});
+  return {file:{name,size:100,arrayBuffer:()=>bytes},
+   finish:async text=>{resolve(new TextEncoder().encode(text).buffer);await settleFileRead();},
+   fail:async()=>{reject(new Error('File read failed.'));await settleFileRead();}};
+ };
+ const noticeTape='TOOLTAPE\t1\n0\t1\tdGVzdC5ydW4\te30\tOK\te30\n';
+ const truncatedNoticeTape=noticeTape.slice(0,-1);
+ const noticeMessage=name=>'Could not open '+name+'\nTruncated tape: a final LF newline is required.';
+ const expectNotice=message=>{
+  check(()=>assert.equal(nodes.notice.hidden,false));
+  check(()=>assert.equal(nodes.notice.textContent,message));
+ };
+ const expectNoNotice=()=>{
+  check(()=>assert.equal(nodes.notice.hidden,true));
+  check(()=>assert.equal(nodes.notice.textContent,''));
+ };
+ const loadNoticePair=async()=>{
+  await chooseFile('open-file',file(noticeTape,'notice-primary.tape'));
+  await chooseFile('compare-file',file(noticeTape,'notice-comparison.tape'));
+  check(()=>assert.equal(nodes.comparison.hidden,false));
+  expectNoNotice();
+ };
+ const dropMultiple=()=>document.fire('drop',{preventDefault(){},dataTransfer:{files:[file(noticeTape),file(noticeTape)]}});
+ const dropMessage='Drop one .tape file at a time. Use Compare tape to load a second run.';
+ // A failed comparison replacement preserves the valid pair until Clear comparison.
+ await loadNoticePair();
+ await chooseFile('compare-file',file(truncatedNoticeTape,'truncated-comparison.tape'));
+ expectNotice(noticeMessage('truncated-comparison.tape'));
+ check(()=>assert.equal(nodes.filename.textContent,'notice-primary.tape'));
+ check(()=>assert.match(nodes['compare-note'].textContent,/notice-comparison.tape/));
+ nodes['clear-compare'].focus();nodes['clear-compare'].click();
+ expectNoNotice();
+ check(()=>assert.equal(nodes.comparison.hidden,true));
+ check(()=>assert.equal(document.activeElement,nodes['compare-button']));
+ check(()=>assert.match(nodes.inspector.textContent,/test\.run/));
+ check(()=>assert.equal(nodes.announcer.textContent,'Comparison cleared.'));
+ // A new primary discards errors belonging to the previously visible comparison,
+ // including a failed comparison selected while that primary was still reading.
+ await loadNoticePair();
+ const slowPrimary=deferredFile('slow-primary.tape');
+ await chooseFile('open-file',slowPrimary.file);
+ await chooseFile('compare-file',file(truncatedNoticeTape,'late-bad-comparison.tape'));
+ expectNotice(noticeMessage('late-bad-comparison.tape'));
+ await slowPrimary.finish(noticeTape);
+ expectNoNotice();
+ check(()=>assert.equal(nodes.filename.textContent,'slow-primary.tape'));
+ check(()=>assert.equal(nodes.comparison.hidden,true));
+ // The reverse ordering must retain a newer primary failure after comparison
+ // success, and after that successful comparison is explicitly cleared.
+ await loadNoticePair();
+ const slowComparison=deferredFile('slow-comparison.tape');
+ await chooseFile('compare-file',slowComparison.file);
+ await chooseFile('open-file',file(truncatedNoticeTape,'bad-primary.tape'));
+ expectNotice(noticeMessage('bad-primary.tape'));
+ await slowComparison.finish(noticeTape);
+ expectNotice(noticeMessage('bad-primary.tape'));
+ check(()=>assert.match(nodes['compare-note'].textContent,/slow-comparison.tape/));
+ check(()=>assert.equal(nodes.filename.textContent,'notice-primary.tape'));
+ nodes['clear-compare'].click();
+ expectNotice(noticeMessage('bad-primary.tape'));
+ check(()=>assert.equal(nodes.comparison.hidden,true));
+ // A general drop notice can replace a comparison notice. Later primary success
+ // or Clear comparison must not mistake it for the superseded comparison failure.
+ await loadNoticePair();
+ const primaryBeforeDrop=deferredFile('primary-before-drop.tape');
+ await chooseFile('open-file',primaryBeforeDrop.file);
+ await chooseFile('compare-file',file(truncatedNoticeTape,'before-drop.tape'));
+ expectNotice(noticeMessage('before-drop.tape'));
+ dropMultiple();expectNotice(dropMessage);
+ nodes['clear-compare'].click();expectNotice(dropMessage);
+ await primaryBeforeDrop.finish(noticeTape);
+ expectNotice(dropMessage);
+ check(()=>assert.equal(nodes.filename.textContent,'primary-before-drop.tape'));
+ check(()=>assert.equal(nodes.comparison.hidden,true));
+ await loadNoticePair();
+ const comparisonBeforeDrop=deferredFile('comparison-before-drop.tape');
+ await chooseFile('compare-file',comparisonBeforeDrop.file);
+ dropMultiple();expectNotice(dropMessage);
+ await comparisonBeforeDrop.finish(noticeTape);
+ expectNotice(dropMessage);
+ check(()=>assert.match(nodes['compare-note'].textContent,/comparison-before-drop.tape/));
+ nodes['clear-compare'].click();expectNotice(dropMessage);
+ // Clearing a visible pair cancels a pending replacement. Its later rejection
+ // cannot resurrect a notice or replace a newer primary/drop failure.
+ for(const newerNotice of ['none','primary','drop']) {
+  await loadNoticePair();
+  const clearedComparison=deferredFile('cleared-comparison.tape');
+  await chooseFile('compare-file',clearedComparison.file);
+  nodes['clear-compare'].click();expectNoNotice();
+  if(newerNotice==='primary')await chooseFile('open-file',file(truncatedNoticeTape,'newer-primary.tape'));
+  if(newerNotice==='drop')dropMultiple();
+  await clearedComparison.fail();
+  if(newerNotice==='none')expectNoNotice();
+  else expectNotice(newerNotice==='primary'?noticeMessage('newer-primary.tape'):dropMessage);
+  check(()=>assert.equal(nodes.comparison.hidden,true));
+ }
+ // A successful primary also invalidates pending comparison errors.
+ await loadNoticePair();
+ const replacedComparison=deferredFile('replaced-comparison.tape');
+ await chooseFile('compare-file',replacedComparison.file);
+ await chooseFile('open-file',file(noticeTape,'replacement-with-no-error.tape'));
+ await replacedComparison.fail();expectNoNotice();
+ check(()=>assert.equal(nodes.filename.textContent,'replacement-with-no-error.tape'));
+ check(()=>assert.equal(nodes.comparison.hidden,true));
+ // Read-start clearing and the primary generation guard retain their old behavior:
+ // stale primary success/failure cannot hide a newer failed primary replacement.
+ for(const outcome of ['success','failure']) {
+  await loadNoticePair();
+  dropMultiple();expectNotice(dropMessage);
+  const stalePrimary=deferredFile('stale-primary.tape');
+  await chooseFile('open-file',stalePrimary.file);expectNoNotice();
+  await chooseFile('open-file',file(truncatedNoticeTape,'latest-bad-primary.tape'));
+  if(outcome==='success')await stalePrimary.finish(noticeTape);else await stalePrimary.fail();
+  expectNotice(noticeMessage('latest-bad-primary.tape'));
+  check(()=>assert.equal(nodes.filename.textContent,'notice-primary.tape'));
+  check(()=>assert.equal(nodes.comparison.hidden,false));
+  nodes['clear-compare'].click();expectNotice(noticeMessage('latest-bad-primary.tape'));
+ }
  // Page navigation never changes the inspector selection or accumulates timeline rows.
  const calls=()=>nodes.timeline.querySelectorAll('button[data-position]');
  const callAt=position=>nodes.timeline.querySelector('[data-position="'+position+'"]');
@@ -417,5 +546,5 @@ nodes.timeline.replaceChildren=function(...children){
  check(()=>assert.equal(nodes['skip-pages'].hidden,false));
  skipTo('skip-pages',nodes['next-page']);
  skipDetails();
- console.log('PASS: '+checks+' DOM-model interaction, once-decoded Unicode payload search, bounded pagination through 50,000 valid calls, native skip routes and focus/selection continuity, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
+ console.log('PASS: '+checks+' DOM-model interaction, once-decoded Unicode payload search, bounded pagination through 50,000 valid calls, native skip routes and focus/selection continuity, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, notice ownership, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
 })().catch(e=>{console.error(e);process.exit(1)});

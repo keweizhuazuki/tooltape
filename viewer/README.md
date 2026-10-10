@@ -15,6 +15,10 @@ Open [`index.html`](index.html) directly in a modern browser. There is no server
 
 Files are limited to 16 MiB and 50,000 calls. The timeline renders at most 250 matching cards per page. **Previous page** and **Next page** replace the visible page; the footer reports its one-based range and total matching count. Jumping to a late divergence opens its page without rendering preceding pages. Paging keeps the inspector selection, even when that selected call is on another page. Very large payload panels display the first 100,000 characters with a visible notice; search and comparison still use complete values. An invalid replacement file leaves the previous valid run intact. Opening a new primary tape clears the old comparison.
 
+## Interrupted and repeated file loads
+
+An unsuccessful replacement leaves the last valid primary/comparison visible. Re-selecting the same file is supported. Newer reads and comparison reset invalidate older pending results. Clearing comparison, or successfully opening a new primary, also removes an obsolete comparison failure notice. A still-relevant primary replacement failure or multi-file drop warning is preserved; success in the other load channel does not erase it. Starting another file read retains the existing behavior of clearing the previous notice.
+
 ## Unicode and escaped-text search
 
 Search accepts Unicode characters from JSON keys and string values, including emoji such as `😀`, even when the inspector shows canonical surrogate escapes. It also keeps the original canonical-text matching behavior, so JSON escape spellings and exact numeric text remain searchable. This is a substring filter, not a JSON-value equality query.
@@ -121,6 +125,6 @@ For real offline Chromium/Firefox/WebKit interactions, responsive-layout asserti
 
 ## Implementation and next verification
 
-Completed: native skip controls for direct page/details keyboard access; Unicode/emoji search with single-decoded string matching and unchanged canonical comparison; bounded 250-call pages, late-divergence navigation and truthful ranges; improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
+Completed: comparison-scoped notice lifecycle for interrupted/repeated loads; native skip controls for direct page/details keyboard access; Unicode/emoji search with single-decoded string matching and unchanged canonical comparison; bounded 250-call pages, late-divergence navigation and truthful ranges; improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
 
-Next verification: keep screenshots synchronized with viewer changes; add physical-device testing, native Safari/iOS coverage and an assistive-technology audit.
+Next verification: keep screenshots synchronized with viewer changes; add physical-device testing, native Safari/iOS coverage and an assistive-technology audit of navigation and file-load feedback.

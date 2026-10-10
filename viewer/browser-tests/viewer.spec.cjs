@@ -202,6 +202,39 @@ async function chooseWithKeyboard(page, button, key, input) {
   await (await chooserPromise).setFiles(input);
 }
 
+async function deferFileReads(page, names) {
+  await page.evaluate(names => {
+    const original = File.prototype.arrayBuffer;
+    const reads = new Map();
+    window.__tooltapeDeferredReads = reads;
+    File.prototype.arrayBuffer = function () {
+      const bytes = original.call(this);
+      if (!names.includes(this.name)) return bytes;
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      const result = Promise.all([bytes, gate]).then(([buffer, outcome]) => {
+        if (outcome === 'reject') throw new Error('Deferred file read failed: ' + this.name);
+        return buffer;
+      });
+      // Observe both outcomes immediately. Awaiting settled and one microtask
+      // after release also lets readFile's already-attached consumer finish.
+      reads.set(this.name, { release, settled: result.then(() => {}, () => {}) });
+      return result;
+    };
+  }, names);
+}
+
+async function releaseFileRead(page, name, outcome = 'resolve') {
+  await page.evaluate(async ({ name, outcome }) => {
+    const read = window.__tooltapeDeferredReads.get(name);
+    if (!read) throw new Error('The deferred File read did not start: ' + name);
+    read.release(outcome);
+    await read.settled;
+    await Promise.resolve();
+    window.__tooltapeDeferredReads.delete(name);
+  }, { name, outcome });
+}
+
 async function capture(page, browser, testInfo, name, fixtureDescription, sourceFixture = fixture, fixtureEvidence = null) {
   const directory = path.join(__dirname, 'artifacts/screenshots', testInfo.project.name);
   await fs.mkdir(directory, { recursive: true });
@@ -792,6 +825,155 @@ test('a stale real-file read cannot overwrite a newer selection', async ({ page 
   await expect(calls(page)).toHaveCount(1);
   await expect(calls(page).first()).toHaveAccessibleName('Call 0: newer.run, OK');
 });
+
+test('clearing comparison dismisses its failed replacement notice and permits same-file recovery', async ({ page }) => {
+  const primary = file('primary.tape', tape([{ name: 'primary.run', output: '{"value":1}' }]));
+  const comparison = file('comparison.tape', tape([{ name: 'primary.run', output: '{"value":2}' }]));
+  const invalidComparison = file('invalid-comparison.tape', 'TOOLTAPE\t1');
+  await page.locator('#open-file').setInputFiles(primary);
+  await page.locator('#compare-file').setInputFiles(comparison);
+  await expect(page.getByLabel('comparison output', { exact: true })).toContainText('2');
+  await page.locator('#compare-file').setInputFiles(invalidComparison);
+  await expect(page.getByRole('alert')).toContainText('Could not open invalid-comparison.tape');
+  await expect(page.locator('#comparison')).toBeVisible();
+  await expect(page.getByLabel('comparison output', { exact: true })).toContainText('2');
+  await page.getByRole('button', { name: 'Clear comparison', exact: true }).click();
+  await expect(page.locator('#comparison')).toBeHidden();
+  await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+  await expect(page.locator('#notice')).toBeHidden();
+  await expect(page.locator('#notice')).toHaveText('');
+  await expect(page.locator('#filename')).toHaveText(primary.name);
+  await expect(page.getByLabel('output', { exact: true })).toContainText('1');
+
+  // Re-select the exact same payload after dismissal, then recover by choosing
+  // the same valid File twice. The public inputs must remain reusable.
+  await page.locator('#compare-file').setInputFiles(invalidComparison);
+  await expect(page.getByRole('alert')).toContainText('Could not open invalid-comparison.tape');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.locator('#compare-file').setInputFiles(comparison);
+    await expect(page.locator('#compare-file')).toHaveValue('');
+    await expect(page.locator('#comparison')).toBeVisible();
+    await expect(page.locator('#notice')).toBeHidden();
+    await expect(page.locator('#notice')).toHaveText('');
+    await expect(page.getByLabel('comparison output', { exact: true })).toContainText('2');
+  }
+});
+
+test('a pending primary success dismisses an intervening comparison failure against the old primary', async ({ page }) => {
+  await deferFileReads(page, ['next-primary.tape']);
+  await page.locator('#open-file').setInputFiles(file('visible-primary.tape', tape([{ name: 'visible.run' }])));
+  await page.locator('#compare-file').setInputFiles(file('visible-comparison.tape', tape([{ name: 'visible.run', output: '{"value":2}' }])));
+  await expect(page.locator('#comparison')).toBeVisible();
+  await page.locator('#open-file').setInputFiles(file('next-primary.tape', tape([{ name: 'next.run' }])));
+  await expect(page.locator('#filename')).toHaveText('visible-primary.tape');
+  await page.locator('#compare-file').setInputFiles(file('invalid-comparison.tape', 'TOOLTAPE\t1'));
+  await expect(page.getByRole('alert')).toContainText('Could not open invalid-comparison.tape');
+  await expect(page.locator('#comparison')).toBeVisible();
+  await releaseFileRead(page, 'next-primary.tape');
+  await expect(page.locator('#filename')).toHaveText('next-primary.tape');
+  await expect(calls(page)).toHaveCount(1);
+  await expect(calls(page).first()).toHaveAccessibleName('Call 0: next.run, OK');
+  await expect(page.locator('#comparison')).toBeHidden();
+  await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+  await expect(page.locator('#notice')).toBeHidden();
+  await expect(page.locator('#notice')).toHaveText('');
+});
+
+test('comparison success and clearing retain an intervening primary failure notice', async ({ page }) => {
+  await deferFileReads(page, ['pending-comparison.tape']);
+  await page.locator('#open-file').setInputFiles(file('primary.tape', tape([{ name: 'primary.run' }])));
+  await page.locator('#compare-file').setInputFiles(file('pending-comparison.tape', tape([{ name: 'primary.run', output: '{"value":2}' }])));
+  await page.locator('#open-file').setInputFiles(file('invalid-primary.tape', 'TOOLTAPE\t1'));
+  await expect(page.getByRole('alert')).toContainText('Could not open invalid-primary.tape');
+  const notice = await page.locator('#notice').textContent();
+  await releaseFileRead(page, 'pending-comparison.tape');
+  await expect(page.locator('#comparison')).toBeVisible();
+  await expect(page.getByLabel('comparison output', { exact: true })).toContainText('2');
+  await expect(page.getByRole('alert')).toHaveText(notice);
+  await page.getByRole('button', { name: 'Clear comparison', exact: true }).click();
+  await expect(page.locator('#comparison')).toBeHidden();
+  await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveText(notice);
+  await expect(page.locator('#filename')).toHaveText('primary.tape');
+  await expect(calls(page).first()).toHaveAccessibleName('Call 0: primary.run, OK');
+});
+
+for (const completion of ['clear comparison', 'primary success']) {
+  test(`${completion} retains an intervening general multiple-file drop notice`, async ({ page }) => {
+    await deferFileReads(page, ['next-primary.tape']);
+    const content = tape([{ name: 'primary.run' }]);
+    await page.locator('#open-file').setInputFiles(file('primary.tape', content));
+    await page.locator('#compare-file').setInputFiles(file('comparison.tape', content));
+    await expect(page.locator('#comparison')).toBeVisible();
+    if (completion === 'primary success') {
+      await page.locator('#open-file').setInputFiles(file('next-primary.tape', tape([{ name: 'next.run' }])));
+    }
+    await page.locator('body').drop({ files: [file('first.tape', content), file('second.tape', content)] });
+    await expect(page.getByRole('alert')).toContainText('Drop one .tape file at a time');
+    const notice = await page.locator('#notice').textContent();
+    if (completion === 'primary success') await releaseFileRead(page, 'next-primary.tape');
+    else await page.getByRole('button', { name: 'Clear comparison', exact: true }).click();
+    await expect(page.locator('#comparison')).toBeHidden();
+    await expect(page.getByRole('alert')).toHaveText(notice);
+    await expect(page.locator('#filename')).toHaveText(completion === 'primary success' ? 'next-primary.tape' : 'primary.tape');
+    await expect(calls(page)).toHaveCount(1);
+    await expect(calls(page).first()).toHaveAccessibleName(completion === 'primary success'
+      ? 'Call 0: next.run, OK' : 'Call 0: primary.run, OK');
+  });
+}
+
+for (const replacement of ['clear', 'comparison replacement', 'primary replacement']) {
+  for (const outcome of ['resolve', 'reject']) {
+    test(`stale comparison read ${outcome} after ${replacement} cannot restore state or obsolete notices`, async ({ page }) => {
+      await deferFileReads(page, ['stale-comparison.tape']);
+      for (const retainNotice of [false, true]) {
+        await test.step(retainNotice ? 'retain the newer primary notice' : 'keep the notice dismissed', async () => {
+          const content = tape([{ name: 'primary.run' }]);
+          await page.locator('#open-file').setInputFiles(file('primary.tape', content));
+          await page.locator('#compare-file').setInputFiles(file('original-comparison.tape', content));
+          await expect(page.locator('#comparison')).toBeVisible();
+          await page.locator('#compare-file').setInputFiles(file('stale-comparison.tape', tape([{ name: 'stale.run', output: '{"value":"stale"}' }])));
+          if (replacement === 'clear') {
+            await page.getByRole('button', { name: 'Clear comparison', exact: true }).click();
+          } else if (replacement === 'comparison replacement') {
+            await page.locator('#compare-file').setInputFiles(file('newer-comparison.tape', tape([{ name: 'primary.run', output: '{"value":"newer"}' }])));
+            await expect(page.getByLabel('comparison output', { exact: true })).toContainText('newer');
+          } else {
+            await page.locator('#open-file').setInputFiles(file('newer-primary.tape', tape([{ name: 'newer.run' }])));
+            await expect(page.locator('#filename')).toHaveText('newer-primary.tape');
+          }
+          await expect(page.locator('#notice')).toBeHidden();
+          let notice = '';
+          if (retainNotice) {
+            // This ordinary failed primary read owns the current notice. Stale
+            // success must not clear it; stale rejection must not replace it.
+            await page.locator('#open-file').setInputFiles(file('current-primary-error.tape', 'TOOLTAPE\t1'));
+            await expect(page.getByRole('alert')).toContainText('Could not open current-primary-error.tape');
+            notice = await page.locator('#notice').textContent();
+          }
+          await releaseFileRead(page, 'stale-comparison.tape', outcome);
+          if (retainNotice) await expect(page.getByRole('alert')).toHaveText(notice);
+          else {
+            await expect(page.locator('#notice')).toBeHidden();
+            await expect(page.locator('#notice')).toHaveText('');
+          }
+          await expect(page.locator('#filename')).toHaveText(replacement === 'primary replacement' ? 'newer-primary.tape' : 'primary.tape');
+          await expect(calls(page)).toHaveCount(1);
+          await expect(calls(page).first()).toHaveAccessibleName(replacement === 'primary replacement'
+            ? 'Call 0: newer.run, OK' : 'Call 0: primary.run, OK');
+          if (replacement === 'comparison replacement') {
+            await expect(page.locator('#comparison')).toBeVisible();
+            await expect(page.locator('#compare-note')).toContainText('newer-comparison.tape');
+            await expect(page.getByLabel('comparison output', { exact: true })).toContainText('newer');
+          } else {
+            await expect(page.locator('#comparison')).toBeHidden();
+            await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+          }
+        });
+      }
+    });
+  }
+}
 
 for (const count of [250, 251, 501]) {
   for (const key of ['Enter', 'Space']) {
