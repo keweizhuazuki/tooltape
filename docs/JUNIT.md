@@ -72,6 +72,12 @@ class WeatherRegressionTest {
 
 Normally pass `tool` to your own orchestration method instead of spelling the calls out in the test. A workflow must receive its side-effect boundary explicitly. The helper has no live delegate and never invokes an external tool for you, but arbitrary code inside your callback is still ordinary Java, not a sandbox.
 
+## Numeric assertions and domain results
+
+Replay numbers are `BigDecimal` regardless of whether the live tool returned an `Integer`, `Long`, `Float` or another supported JSON number. Decimal scale is canonicalized too. `assertEquals(22, result.get("temperature"))` compares Java types and will fail for a replayed `BigDecimal`; the string assertion above intentionally checks canonical JSON numeric text.
+
+For production workflows, normalize values at the domain boundary in both recording and replay. The [executable numeric example](../examples/NumericBoundaryRegression.java) converts a `Number` through `new BigDecimal(number.toString()).intValueExact()`, so fractional or out-of-range counts fail rather than truncate. Do not replace this with `Number.intValue()` when exactness matters. For decimal equality, use a domain-specific comparison/scale policy rather than relying on `BigDecimal.equals`, which also compares scale. The helper does not restore original Java wrapper classes or omitted fields.
+
 ## Named dynamic tests
 
 ```java

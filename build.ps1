@@ -18,6 +18,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & java -ea '-Dtooltape.test.jar=target/tooltape.jar' -cp 'target/classes;target/test-classes' dev.tooltape.ManifestProcessTest
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& javac -encoding UTF-8 --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java
+& javac -encoding UTF-8 --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java examples/NumericBoundaryRegression.java
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& java -cp 'target/classes;target/example-classes' NumericBoundaryRegression
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Output 'Built target/tooltape.jar'

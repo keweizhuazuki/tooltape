@@ -6,7 +6,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.regex.Pattern;
 
-/** Explicit top-level allowlist. Nested values require separate projection by the caller. */
+/**
+ * Explicit top-level allowlist. Nested values require separate projection by the caller.
+ *
+ * <p>Allowed scalar content is retained without semantic classification. A string under an ordinary
+ * allowed name can contain private prompts, messages or other sensitive content. Review values
+ * before enabling capture; credential-like name filtering is not content redaction.
+ */
 public final class CapturePolicy {
   public static final String REDACTED = "[REDACTED]";
   private static final Pattern SECRET =

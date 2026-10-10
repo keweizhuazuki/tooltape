@@ -2,7 +2,13 @@ package dev.tooltape;
 
 import java.util.*;
 
-/** Offline stub. No delegate exists, so this boundary cannot execute a real tool. */
+/**
+ * Offline stub. No delegate exists, so this boundary cannot execute a real tool.
+ *
+ * <p>Successful calls return newly parsed JSON objects containing only captured values. Numbers are
+ * {@link java.math.BigDecimal}; original Java numeric classes, decimal scale, map identity and
+ * omitted fields are not preserved. Normalize values at the application's domain boundary.
+ */
 public final class Replay implements Tool, AutoCloseable {
   private final Tape tape;
   private final CapturePolicy policy;
