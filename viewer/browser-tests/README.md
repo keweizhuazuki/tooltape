@@ -4,6 +4,14 @@ English | [简体中文](README.zh-CN.md)
 
 These development-only checks open `viewer/index.html` directly through `file://` in real Chromium, Firefox and WebKit. They do not start a web server, tunnel, deployment, or external service. The viewer still needs no runtime dependencies. Test contexts are offline, and each test additionally rejects unexpected non-file requests and uncaught JavaScript errors.
 
+## Verified run
+
+[Run 38039531019](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019), source `1d9d113`, passed 153 checks with two intentional mobile duplicate screenshot skips and no failures or retries. All 11 screenshot/provenance pairs were downloaded, hash-checked and visually inspected. README images select Chromium explicitly; other engine captures remain in the workflow artifact.
+
+The keyboard regression records the actual post-Escape Tab target. Firefox 157 gives the overflowing timeline its own native Tab stop; Chromium 156 and WebKit 27.2 enter the first row directly. The test permits only that exact visible overflowing container, then requires forward/backward row traversal while preserving the selected call. It does not skip keyboard checks for any engine.
+
+[Computed contrast evidence](../../docs/contrast-results.json) covers 114 sampled text/state combinations per desktop project and 113 per mobile project. The lowest sampled ratio was 4.89479 in every project; this is scoped evidence, not a full accessibility certification.
+
 ## Reproduce
 
 Use Node.js 22 or newer on a machine that permits browser processes:
