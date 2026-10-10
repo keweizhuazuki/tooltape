@@ -361,9 +361,12 @@ for (const focusedControl of ['search', 'errors-only']) {
   test(`Escape clears filters while preserving ${focusedControl} focus and a selected call beyond 250`, async ({ page }) => {
     const rows = Array.from({ length: 251 }, (_, index) => ({
       name: 'step.' + index,
-      status: index === 250 ? 'ERROR' : 'OK'
+      status: index === 250 ? 'ERROR' : 'OK',
+      output: index === 250 ? 'java.io.IOException' : '{}'
     }));
     await page.locator('#open-file').setInputFiles(file('filtered.tape', tape(rows)));
+    await expect(page.locator('#stat-calls')).toHaveText('251');
+    await expect(page.getByRole('alert')).toBeHidden();
     await page.getByRole('searchbox').fill('step.250');
     await page.getByLabel('Errors only', { exact: true }).check();
     await expect(calls(page)).toHaveCount(1);
@@ -385,9 +388,12 @@ for (const focusedControl of ['search', 'errors-only']) {
 test('Escape from a filtered row retains focused and selected calls beyond 250', async ({ page }) => {
   const rows = Array.from({ length: 501 }, (_, index) => ({
     name: (index >= 499 ? 'tail.' : 'step.') + index,
-    status: index >= 499 ? 'ERROR' : 'OK'
+    status: index >= 499 ? 'ERROR' : 'OK',
+    output: index >= 499 ? 'java.io.IOException' : '{}'
   }));
   await page.locator('#open-file').setInputFiles(file('filtered-tail.tape', tape(rows)));
+  await expect(page.locator('#stat-calls')).toHaveText('501');
+  await expect(page.getByRole('alert')).toBeHidden();
   await page.getByRole('searchbox').fill('tail.');
   await page.getByLabel('Errors only', { exact: true }).check();
   await expect(calls(page)).toHaveCount(2);
