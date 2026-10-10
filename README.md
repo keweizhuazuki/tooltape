@@ -21,7 +21,7 @@ ToolTape turns a Java tool boundary into a reusable test fixture. Record the ord
 
 ![ToolTape v2 session timeline and recorded tool failure](docs/images/viewer-session.png)
 
-Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed all 25 active checks.
+Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454) passed all 25 active checks.
 
 <details>
 <summary>See the first-divergence comparison and mobile layout</summary>
@@ -50,7 +50,7 @@ CI produces a verified JAR and SHA-256 checksums. It is not published on Maven C
 The tested v0.2 build can currently be downloaded from its successful CI run:
 
 ```sh
-gh run download 38034258764 --repo keweizhuazuki/tooltape --name tooltape-dist-7d08b44df8d6c8a4cdc7835bfcee02e07a8258a9
+gh run download 38035619451 --repo keweizhuazuki/tooltape --name tooltape-dist-6cbb150b00fba0c32cd890e1034543e131e2f0ca
 sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
@@ -150,8 +150,8 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Verification
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 24 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998596): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619451): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454) passed 25 desktop/mobile Chromium checks with one intentional duplicate screenshot skip and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
 
