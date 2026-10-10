@@ -202,11 +202,13 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 41 项核心 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/12/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
-- 界面：303 项解析、规范化与搜索检查、1,015 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38068578529)通过 218 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
+- 界面：303 项解析、规范化与搜索检查、1,197 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38070131969)通过 273 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
 
 - Unicode/emoji 内容搜索兼容规范文本，字符串仅解码一次，保留字面转义及精确值比较语义
+
+- 清除比较或成功替换主录制时移除过期的比较错误提示，同时保留无关的主录制和拖放失败提示
 
 - 原生键盘跳转按钮可直接到达分页控件和已选调用详情，无需遍历最多 250 个调用按钮
 
@@ -252,7 +254,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
 2. 在数字领域转换和重试示例基础上，为显式清单和回放流程补充多个独立编写的应用场景，再考虑目录发现或自动基线管理。在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
-3. 针对 Unicode 搜索、键盘直达控件和有界分页导航增加辅助技术评审和真机测试；引擎模拟不代表原生 Safari/iOS 或 Android 兼容。
+3. 针对 Unicode 搜索、键盘直达控件、文件加载反馈和有界分页导航增加辅助技术评审和真机测试；引擎模拟不代表原生 Safari/iOS 或 Android 兼容。
 4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
 5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。
 

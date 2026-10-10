@@ -63,7 +63,7 @@
 'use strict';
 // Intentionally dependency-free: only File/Blob reads and DOM rendering, never network or storage.
 const $ = id => document.getElementById(id);
-const state = { tape: null, comparison: null, selected: 0, pageStart: 0, difference: null, openVersion: 0, compareVersion: 0 };
+const state = { tape: null, comparison: null, selected: 0, pageStart: 0, difference: null, openVersion: 0, compareVersion: 0, noticeScope: null };
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_CALLS = 50000;
 const PAGE_SIZE = 250;
@@ -306,8 +306,10 @@ function durationParts(nanos) {
   }
 }
 function durationText(nanos) { return durationParts(nanos).join(' '); }
-function showError(message) { $('notice').textContent = message; $('notice').hidden = false; }
-function clearError() { $('notice').hidden = true; $('notice').textContent = ''; }
+// Read generations reject stale results; scope identifies an already-visible
+// comparison failure that should disappear when its comparison is discarded.
+function showError(message, scope = 'general') { state.noticeScope = scope; $('notice').textContent = message; $('notice').hidden = false; }
+function clearError() { state.noticeScope = null; $('notice').hidden = true; $('notice').textContent = ''; }
 function announce(message) { $('announcer').textContent = message; }
 function firstDivergence(a, b) {
   const length = Math.max(a.calls.length, b.calls.length);
@@ -564,6 +566,7 @@ function appendComparedCall(target, call) {
 function loadPrimary(tape) {
   state.tape = tape; state.comparison = null; state.selected = 0; state.pageStart = 0;
   state.compareVersion++;
+  if (state.noticeScope === 'comparison') clearError();
   $('search').value = ''; $('errors-only').checked = false;
   renderRecording(); renderStats(); renderComparison(); renderTimeline(); renderInspector();
   announce('Opened ' + tape.name + ', ' + tape.calls.length + ' calls, ' + tape.errors + ' errors. ' + completenessLabel(tape) + '. ' + $('recording-note').textContent);
@@ -588,7 +591,7 @@ async function readFile(file, compare) {
       renderComparison(); renderInspector();
       announce($('compare-title').textContent + '. ' + $('compare-context').textContent + ' ' + $('compare-policy-warning').textContent);
     } else loadPrimary(tape);
-  } catch (error) { if (current()) showError('Could not open ' + file.name + '\n' + error.message); }
+  } catch (error) { if (current()) showError('Could not open ' + file.name + '\n' + error.message, compare ? 'comparison' : 'primary'); }
 }
 function encode(value) {
   const bytes = new TextEncoder().encode(value);
@@ -624,6 +627,7 @@ $('next-page').addEventListener('click', () => changePage(1));
 $('clear-compare').addEventListener('click', () => {
   const restoreFocus = document.activeElement === $('clear-compare');
   state.compareVersion++; state.comparison = null;
+  if (state.noticeScope === 'comparison') clearError();
   renderComparison(); renderInspector(); announce('Comparison cleared.');
   if (restoreFocus) $('compare-button').focus();
 });
