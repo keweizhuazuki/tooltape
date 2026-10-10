@@ -36,6 +36,8 @@ npm run test:browser
 
 移动端项目使用 390 × 844 的 Chromium 模拟环境，并未验证真实 Android 或 iPhone 设备、Safari 或操作系统文件选择器。测试运行器控制浏览器文件选择，不检查操作系统原生对话框。这些断言和真实截图也不等同于完整的无障碍审计或基于像素基准的视觉回归系统。
 
+新增键盘回归检查覆盖分页、清除筛选、退出比较后的焦点、可见 Tab 停留点，以及 Enter/空格触发文件选择器。
+
 ## 截图输出
 
 真实截图测试将以下文件写入 `viewer/browser-tests/artifacts/screenshots/`：

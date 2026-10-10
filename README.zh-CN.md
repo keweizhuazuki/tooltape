@@ -161,6 +161,8 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 本次已完成（v0.2）
 
+- 时间线分页、清除筛选与退出比较时保留合理键盘焦点，隐藏文件输入不再形成不可见 Tab 停留点
+
 - CI Actions 更新为经核对的官方版本并锁定完整提交，不持久保留 checkout 凭据（[维护说明](docs/CI_MAINTENANCE.zh-CN.md)）
 
 - 版本化、隐私优先的 JSON 校验/比较报告，并在全部 CI 平台测试真实子进程退出码
@@ -185,7 +187,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
 2. 在保持报告 v1 契约兼容的前提下，增加可选的旧格式严格拒绝及多录制汇总。
-3. 增加浏览器无障碍及 Firefox/WebKit 测试；目前真实浏览器范围为 Chromium 桌面及移动模拟。
+3. 在键盘回归测试基础上增加对比度、辅助技术评审和 Firefox/WebKit 覆盖；目前真实浏览器范围为 Chromium 桌面及移动模拟。
 4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
 5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。
 

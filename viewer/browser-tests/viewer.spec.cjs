@@ -29,6 +29,13 @@ async function chooseWithButton(page, button, input) {
   await (await chooserPromise).setFiles(input);
 }
 
+async function chooseWithKeyboard(page, button, key, input) {
+  await button.focus();
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.keyboard.press(key);
+  await (await chooserPromise).setFiles(input);
+}
+
 async function capture(page, browser, testInfo, name, fixtureDescription, sourceFixture = fixture) {
   const directory = path.join(__dirname, 'artifacts/screenshots');
   await fs.mkdir(directory, { recursive: true });
@@ -92,6 +99,63 @@ test('opens the real fixture through the file chooser and supports choosing it a
   await expect(calls(page)).toHaveCount(2);
   await expect(page.locator('#notice')).toBeHidden();
 });
+
+test('Tab skips invisible file inputs before and after opening a tape', async ({ page }) => {
+  await expect(page.locator('#open-file')).toHaveAttribute('tabindex', '-1');
+  await expect(page.locator('#compare-file')).toHaveAttribute('tabindex', '-1');
+  await page.locator('#open-button').focus();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#empty-open')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#load-example')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('#empty-open')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('#open-button')).toBeFocused();
+
+  await openFixture(page);
+  await page.locator('#compare-button').focus();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#open-button')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('searchbox')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('#open-button')).toBeFocused();
+});
+
+for (const key of ['Enter', 'Space']) {
+  test(`${key} on visible Open and Compare buttons opens usable file choosers`, async ({ page }) => {
+    const content = tape([{ name: 'keyboard.run' }]);
+    await chooseWithKeyboard(page, page.getByRole('button', { name: 'Open tape', exact: true }),
+      key, file('keyboard-primary.tape', content));
+    await expect(page.locator('#filename')).toHaveText('keyboard-primary.tape');
+    await expect(calls(page)).toHaveCount(1);
+    await expect(page.locator('#open-file')).toHaveValue('');
+    await expect(page.locator('#announcer')).toContainText('Opened keyboard-primary.tape');
+
+    await chooseWithKeyboard(page, page.getByRole('button', { name: 'Compare tape', exact: true }),
+      key, file('keyboard-comparison.tape', content));
+    await expect(page.locator('#comparison')).toBeVisible();
+    await expect(page.locator('#compare-title')).toContainText('all 1 calls match');
+    await expect(page.locator('#compare-file')).toHaveValue('');
+  });
+
+  test(`${key} clears comparison and returns focus to Compare tape with an announcement`, async ({ page }) => {
+    await page.locator('#open-file').setInputFiles(file('primary.tape', tape([{ output: '{"value":1}' }])));
+    await page.locator('#compare-file').setInputFiles(file('comparison.tape', tape([{ output: '{"value":2}' }])));
+    await expect(page.locator('#comparison')).toBeVisible();
+    await expect(page.getByLabel('comparison output', { exact: true })).toContainText('2');
+    await page.getByRole('button', { name: 'Clear comparison', exact: true }).focus();
+    await page.keyboard.press(key);
+    await expect(page.locator('#comparison')).toBeHidden();
+    await expect(page.getByLabel('comparison output', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Compare tape', exact: true })).toBeFocused();
+    await expect(page.locator('#announcer')).toHaveText('Comparison cleared.');
+    await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#open-button')).toBeFocused();
+  });
+}
 
 test('built-in example, filters, selection, and Escape work in a real browser', async ({ page }) => {
   await page.locator('#load-example').click();
@@ -235,16 +299,156 @@ test('a stale real-file read cannot overwrite a newer selection', async ({ page 
   await expect(calls(page).first()).toHaveAccessibleName('Call 0: newer.run, OK');
 });
 
-test('timeline pagination keeps large tapes usable', async ({ page }) => {
-  await page.locator('#open-file').setInputFiles(file('many.tape', tape(Array.from({ length: 251 }, (_, index) => ({ name: 'step.' + index })))));
-  await expect(page.locator('#stat-calls')).toHaveText('251');
+for (const count of [251, 501]) {
+  for (const key of ['Enter', 'Space']) {
+    test(`${key} pagination keeps focus and Tab order across ${count} calls`, async ({ page }) => {
+      const rows = Array.from({ length: count }, (_, index) => ({ name: 'step.' + index }));
+      await page.locator('#open-file').setInputFiles(file('many.tape', tape(rows)));
+      await expect(page.locator('#stat-calls')).toHaveText(String(count));
+      await expect(calls(page)).toHaveCount(250);
+      await calls(page).nth(249).focus();
+      await page.keyboard.press('Tab');
+      const more = page.getByRole('button', { name: `Show next ${Math.min(250, count - 250)} calls`, exact: true });
+      await expect(more).toBeFocused();
+      await page.keyboard.press(key);
+      await expect(calls(page)).toHaveCount(Math.min(500, count));
+      await expect(calls(page).nth(250)).toBeFocused();
+      await expect(calls(page).nth(250)).toHaveAttribute('aria-pressed', 'false');
+      await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#inspector h2')).toHaveText('step.0');
+
+      if (count === 501) {
+        await page.keyboard.press('Tab');
+        await expect(calls(page).nth(251)).toBeFocused();
+        await calls(page).nth(499).focus();
+        await page.keyboard.press('Tab');
+        await expect(page.getByRole('button', { name: 'Show next 1 calls', exact: true })).toBeFocused();
+        await page.keyboard.press(key);
+        await expect(calls(page)).toHaveCount(501);
+        await expect(calls(page).nth(500)).toBeFocused();
+        await expect(calls(page).nth(500)).toHaveAttribute('aria-pressed', 'false');
+        await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'true');
+      }
+
+      await expect(page.getByRole('button', { name: /^Show next / })).toHaveCount(0);
+      await page.keyboard.press('Tab');
+      await expect(page.locator('summary')).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(calls(page).last()).toBeFocused();
+    });
+  }
+}
+
+test('Escape without filters preserves the focused row and a different selected row', async ({ page }) => {
+  await page.locator('#open-file').setInputFiles(file('selection.tape', tape([
+    { name: 'first.run' }, { name: 'selected.run' }
+  ])));
+  await calls(page).nth(1).focus();
+  await page.keyboard.press('Enter');
+  await calls(page).first().focus();
+  await page.keyboard.press('Escape');
+  await expect(calls(page)).toHaveCount(2);
+  await expect(calls(page).first()).toBeFocused();
+  await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'false');
+  await expect(calls(page).nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#inspector h2')).toHaveText('selected.run');
+  await page.keyboard.press('Tab');
+  await expect(calls(page).nth(1)).toBeFocused();
+});
+
+for (const focusedControl of ['search', 'errors-only']) {
+  test(`Escape clears filters while preserving ${focusedControl} focus and a selected call beyond 250`, async ({ page }) => {
+    const rows = Array.from({ length: 251 }, (_, index) => ({
+      name: 'step.' + index,
+      status: index === 250 ? 'ERROR' : 'OK'
+    }));
+    await page.locator('#open-file').setInputFiles(file('filtered.tape', tape(rows)));
+    await page.getByRole('searchbox').fill('step.250');
+    await page.getByLabel('Errors only', { exact: true }).check();
+    await expect(calls(page)).toHaveCount(1);
+    await calls(page).first().focus();
+    await page.keyboard.press('Enter');
+    await page.locator('#' + focusedControl).focus();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('searchbox')).toHaveValue('');
+    await expect(page.getByLabel('Errors only', { exact: true })).not.toBeChecked();
+    await expect(page.locator('#' + focusedControl)).toBeFocused();
+    await expect(calls(page)).toHaveCount(251);
+    await expect(calls(page).nth(250)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#inspector h2')).toHaveText('step.250');
+    await page.keyboard.press('Tab');
+    await expect(focusedControl === 'search' ? page.locator('#errors-only') : calls(page).first()).toBeFocused();
+  });
+}
+
+test('Escape from a filtered row retains focused and selected calls beyond 250', async ({ page }) => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({
+    name: (index >= 499 ? 'tail.' : 'step.') + index,
+    status: index >= 499 ? 'ERROR' : 'OK'
+  }));
+  await page.locator('#open-file').setInputFiles(file('filtered-tail.tape', tape(rows)));
+  await page.getByRole('searchbox').fill('tail.');
+  await page.getByLabel('Errors only', { exact: true }).check();
+  await expect(calls(page)).toHaveCount(2);
+  await calls(page).nth(1).focus();
+  await page.keyboard.press('Enter');
+  await calls(page).first().focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expect(page.getByLabel('Errors only', { exact: true })).not.toBeChecked();
+  await expect(calls(page)).toHaveCount(501);
+  await expect(calls(page).nth(499)).toBeFocused();
+  await expect(calls(page).nth(499)).toHaveAttribute('aria-pressed', 'false');
+  await expect(calls(page).nth(500)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#inspector h2')).toHaveText('tail.500');
+  await page.keyboard.press('Tab');
+  await expect(calls(page).nth(500)).toBeFocused();
+});
+
+test('Escape clears filters and restores focus to the replacement Show next button', async ({ page }) => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
+  await page.locator('#open-file').setInputFiles(file('filtered-pagination.tape', tape(rows)));
+  await page.getByRole('searchbox').fill('step.');
   await expect(calls(page)).toHaveCount(250);
-  await page.getByRole('button', { name: 'Show next 1 calls', exact: true }).click();
-  await expect(calls(page)).toHaveCount(251);
-  await page.getByRole('searchbox').fill('step.250');
-  await expect(calls(page)).toHaveCount(1);
-  await calls(page).first().click();
-  await expect(page.locator('#inspector h2')).toHaveText('step.250');
+  await page.getByRole('button', { name: 'Show next 250 calls', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expect(calls(page)).toHaveCount(250);
+  await expect(page.getByRole('button', { name: 'Show next 250 calls', exact: true })).toBeFocused();
+  await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Space');
+  await expect(calls(page)).toHaveCount(500);
+  await expect(calls(page).nth(250)).toBeFocused();
+});
+
+test('keyboard divergence navigation beyond 250 survives Escape and continues pagination', async ({ page }) => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
+  await page.locator('#open-file').setInputFiles(file('primary-many.tape', tape(rows)));
+  const changed = rows.map((row, index) => index === 400 ? { ...row, output: '{"changed":true}' } : row);
+  await page.locator('#compare-file').setInputFiles(file('comparison-many.tape', tape(changed)));
+  await expect(page.locator('#compare-title')).toContainText('position 401');
+  await page.getByRole('searchbox').fill('no-matches');
+  await page.getByLabel('Errors only', { exact: true }).check();
+  await page.getByRole('button', { name: 'Inspect divergence', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expect(page.getByLabel('Errors only', { exact: true })).not.toBeChecked();
+  await expect(calls(page)).toHaveCount(401);
+  await expect(calls(page).nth(400)).toBeFocused();
+  await expect(calls(page).nth(400)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('comparison output', { exact: true })).toContainText('true');
+  await page.keyboard.press('Escape');
+  await expect(calls(page)).toHaveCount(401);
+  await expect(calls(page).nth(400)).toBeFocused();
+  await expect(calls(page).nth(400)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Show next 100 calls', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(calls(page)).toHaveCount(501);
+  await expect(calls(page).nth(401)).toBeFocused();
+  await expect(calls(page).nth(400)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Tab');
+  await expect(calls(page).nth(402)).toBeFocused();
 });
 
 test('v2 closure, provenance, and policy warnings are visible and distinguish incomplete recordings', async ({ page, browser }, testInfo) => {
