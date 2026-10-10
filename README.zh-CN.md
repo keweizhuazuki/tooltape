@@ -161,6 +161,8 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 本次已完成（v0.2）
 
+- CI Actions 更新为经核对的官方版本并锁定完整提交，不持久保留 checkout 凭据（[维护说明](docs/CI_MAINTENANCE.zh-CN.md)）
+
 - 版本化、隐私优先的 JSON 校验/比较报告，并在全部 CI 平台测试真实子进程退出码
 
 - 安全加固：规范化凭据字段、限制指数展开和节点数、真实调用前预检容量、新 POSIX 文件仅属主可读写
