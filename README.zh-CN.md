@@ -13,6 +13,23 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 > v0.2 专注串行工具编排，不录制或回放模型、不处理流式输出或并行调用，也不隔离整个 Java 进程。外部副作用必须经由 `Tool` 边界；默认不保存输入输出字段，需明确允许安全的标量字段。
 
+## 真实录制，清晰呈现
+
+![ToolTape v2 会话时间线与已录制的工具异常](docs/images/viewer-session.png)
+
+图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529)已通过全部 25 项有效检查。
+
+<details>
+<summary>查看首次差异比较与移动布局</summary>
+
+![离线查看器定位工具返回结果的首次差异](docs/images/viewer-diff.png)
+
+<img src="docs/images/viewer-mobile.png" alt="390px Chromium 移动模拟中的 ToolTape 查看器" width="390">
+
+移动截图来自浏览器模拟，不代表真机验证。PNG 为浏览器直接输出，未进行图像合成。
+
+</details>
+
 ## 解决什么问题？
 
 - 无需在线服务复现故障：已录制的超时转换成 `RecordedToolException`，后续调用返回录制结果。
@@ -126,8 +143,8 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 验证状态
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 13 项 JUnit 测试通过；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
-- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033674971)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
-- 界面：170 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033674969)通过 25 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
+- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998596)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
+- 界面：170 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033998529)通过 25 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
 
