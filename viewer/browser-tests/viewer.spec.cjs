@@ -613,7 +613,7 @@ test('Escape without filters preserves the focused row and a different selected 
 });
 
 for (const focusedControl of ['search', 'errors-only']) {
-  test(`Escape clears filters while preserving ${focusedControl} focus and a selected call beyond 250`, async ({ page }) => {
+  test(`Escape clears filters while preserving ${focusedControl} focus and a selected call beyond 250`, async ({ page }, testInfo) => {
     const rows = Array.from({ length: 251 }, (_, index) => ({
       name: 'step.' + index,
       status: index === 250 ? 'ERROR' : 'OK',
@@ -636,7 +636,37 @@ for (const focusedControl of ['search', 'errors-only']) {
     await expect(calls(page).nth(250)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#inspector h2')).toHaveText('step.250');
     await page.keyboard.press('Tab');
-    await expect(focusedControl === 'search' ? page.locator('#errors-only') : calls(page).first()).toBeFocused();
+    const firstTabTarget = await page.evaluate(() => ({
+      tag: document.activeElement.tagName,
+      id: document.activeElement.id,
+      callPosition: document.activeElement.getAttribute('data-position')
+    }));
+    await testInfo.attach('post-escape-first-tab', {
+      body: Buffer.from(JSON.stringify({ project: testInfo.project.name, focusedControl, firstTabTarget }, null, 2)),
+      contentType: 'application/json'
+    });
+    if (focusedControl === 'search') {
+      await expect(page.locator('#errors-only')).toBeFocused();
+    } else {
+      // Some engines give overflowing containers their own native Tab stop.
+      // Accept only this exact container, then require the next Tab to enter
+      // its first call. Never skip an arbitrary focus destination or force focus.
+      if (firstTabTarget.id === 'timeline') {
+        const timeline = page.locator('#timeline');
+        await expect(timeline).toBeFocused();
+        expect(await timeline.evaluate(element => element.scrollHeight > element.clientHeight),
+          'the native timeline Tab stop belongs to an overflowing scroll container').toBe(true);
+        await page.keyboard.press('Tab');
+      }
+      await expect(calls(page).first()).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(calls(page).nth(1)).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(calls(page).first()).toBeFocused();
+      await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'false');
+      await expect(calls(page).nth(250)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#inspector h2')).toHaveText('step.250');
+    }
   });
 }
 
