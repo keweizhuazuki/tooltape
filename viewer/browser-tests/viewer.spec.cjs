@@ -142,6 +142,7 @@ for (const key of ['Enter', 'Space']) {
 
   test(`${key} clears comparison and returns focus to Compare tape with an announcement`, async ({ page }) => {
     await page.locator('#open-file').setInputFiles(file('primary.tape', tape([{ output: '{"value":1}' }])));
+    await expect(calls(page)).toHaveCount(1);
     await page.locator('#compare-file').setInputFiles(file('comparison.tape', tape([{ output: '{"value":2}' }])));
     await expect(page.locator('#comparison')).toBeVisible();
     await expect(page.getByLabel('comparison output', { exact: true })).toContainText('2');
@@ -332,7 +333,7 @@ for (const count of [251, 501]) {
 
       await expect(page.getByRole('button', { name: /^Show next / })).toHaveCount(0);
       await page.keyboard.press('Tab');
-      await expect(page.locator('summary')).toBeFocused();
+      await expect(page.getByLabel('input', { exact: true })).toBeFocused();
       await page.keyboard.press('Shift+Tab');
       await expect(calls(page).last()).toBeFocused();
     });
@@ -424,6 +425,7 @@ test('Escape clears filters and restores focus to the replacement Show next butt
 test('keyboard divergence navigation beyond 250 survives Escape and continues pagination', async ({ page }) => {
   const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
   await page.locator('#open-file').setInputFiles(file('primary-many.tape', tape(rows)));
+  await expect(calls(page)).toHaveCount(250);
   const changed = rows.map((row, index) => index === 400 ? { ...row, output: '{"changed":true}' } : row);
   await page.locator('#compare-file').setInputFiles(file('comparison-many.tape', tape(changed)));
   await expect(page.locator('#compare-title')).toContainText('position 401');
