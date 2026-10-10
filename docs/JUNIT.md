@@ -17,6 +17,25 @@ The same command syntax can be used in PowerShell; this adapter’s hosted compa
 
 In your application's test dependencies, add locally installed `dev.tooltape:tooltape-junit-jupiter:0.2.0` and a matching Jupiter API/engine version, all with test scope. The adapter's Jupiter API dependency is `provided`: your project controls its runner. Use your existing JUnit BOM rather than combining unrelated engine/platform versions. Maven must resolve ordinary test dependencies during setup; replay itself needs no network.
 
+For a project without an existing JUnit setup, the minimal dependency section is below. Use a Jupiter-capable Surefire runner (the tested consumer pins 3.5.4); the [standalone consumer POM](../integrations/junit-consumer/pom.xml) is a complete runnable reference.
+
+```xml
+<dependencies>
+  <dependency>
+    <groupId>dev.tooltape</groupId>
+    <artifactId>tooltape-junit-jupiter</artifactId>
+    <version>0.2.0</version>
+    <scope>test</scope>
+  </dependency>
+  <dependency>
+    <groupId>org.junit.jupiter</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <version>5.14.4</version>
+    <scope>test</scope>
+  </dependency>
+</dependencies>
+```
+
 ## One workflow, one fixture
 
 Store a reviewed, closed v2 tape in `src/test/resources/tapes/weather-retry.tape`. Use the same capture policy that created it:
@@ -85,7 +104,7 @@ JUnit output can contain tool names, field names, allowlisted argument/result va
 
 ## Verification and scope
 
-The adapter is compiled against Jupiter 5.14.4. Compatibility is checked by consuming the same packaged adapter JAR under Jupiter 5.14.4 and 6.0.3, with isolated consumer projects on Java 17 and 21. See the [Jupiter workflow](../.github/workflows/jupiter.yml) for the exact build and consumer contract. A green run, rather than source compatibility alone, is the evidence for each supported combination.
+The adapter is compiled against Jupiter 5.14.4. Compatibility is checked by consuming the same packaged adapter JAR under Jupiter 5.14.4 and 6.0.3, with isolated consumer projects on Java 17 and 21. See the [Jupiter workflow](../.github/workflows/jupiter.yml) for the exact build and consumer contract. The [verified run for commit 279f46d](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449) passed 20 adapter tests in the build job, then 7 consumer tests in each of those four combinations. Consumer jobs have no checkout and verify actual JAR origins and selected API/engine/launcher versions. These are Ubuntu-hosted results, not a claim about other Jupiter versions or every IDE runner.
 
 Tests cover real JAR resources, named dynamic-child outcomes, fresh replay reuse, parallel isolation, policy/format rejection before callback, complete consumption, recorded retry failures and throwable preservation. Core parser tests cover stream limits, parity and ownership. There is no recording annotation, directory discovery, mutable extension registry or automatic baseline update.
 

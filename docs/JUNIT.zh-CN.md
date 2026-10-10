@@ -17,6 +17,25 @@ PowerShell 可使用相同命令语法；此适配器的托管兼容性检查目
 
 在应用的测试依赖中加入本地安装的 `dev.tooltape:tooltape-junit-jupiter:0.2.0`，以及匹配版本的 Jupiter API/engine，均使用 test scope。适配器的 Jupiter API 为 `provided`，测试运行器由应用控制。请沿用项目的 JUnit BOM，不要混搭不一致的 engine/platform 版本。首次准备普通测试依赖可能需要联网；回放本身不需要网络。
 
+对于尚未配置 JUnit 的项目，可使用以下最小依赖。测试运行器需支持 Jupiter（已验证消费者固定 Surefire 3.5.4）；[独立消费者 POM](../integrations/junit-consumer/pom.xml)提供完整可运行参考。
+
+```xml
+<dependencies>
+  <dependency>
+    <groupId>dev.tooltape</groupId>
+    <artifactId>tooltape-junit-jupiter</artifactId>
+    <version>0.2.0</version>
+    <scope>test</scope>
+  </dependency>
+  <dependency>
+    <groupId>org.junit.jupiter</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <version>5.14.4</version>
+    <scope>test</scope>
+  </dependency>
+</dependencies>
+```
+
 ## 一个工作流，一份夹具
 
 把经过审查并已正常关闭的 v2 录制放在 `src/test/resources/tapes/weather-retry.tape`。捕获策略必须与录制时一致：
@@ -85,7 +104,7 @@ JUnit 输出可能包含工具名、字段名、允许捕获的参数/结果值�
 
 ## 验证与边界
 
-适配器以 Jupiter 5.14.4 编译。独立消费者项目在 Java 17/21 下，分别用 Jupiter 5.14.4 和 6.0.3 消费**同一个已打包适配器 JAR**。具体构建与消费流程见 [Jupiter 工作流](../.github/workflows/jupiter.yml)。每个组合的兼容性证据是实际成功的运行，而非仅凭源码兼容推断。
+适配器以 Jupiter 5.14.4 编译。独立消费者项目在 Java 17/21 下，分别用 Jupiter 5.14.4 和 6.0.3 消费**同一个已打包适配器 JAR**。具体构建与消费流程见 [Jupiter 工作流](../.github/workflows/jupiter.yml)。[提交 279f46d 的已验证运行](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449)通过 20 项适配器测试，以及上述四组组合各 7 项消费者测试。消费任务没有 checkout，并验证真实 JAR 来源和所选 API/engine/launcher 版本。这是 Ubuntu 托管环境结果，不代表其他 Jupiter 版本或所有 IDE 运行器。
 
 测试覆盖真实 JAR 资源、命名动态子测试结果、重复使用时的独立状态、并行隔离、回调前拒绝格式/策略问题、完整消费、录制错误重试及 Throwable 保留。核心解析测试覆盖流大小限制、一致性和所有权。暂不提供录制注解、目录发现、可变扩展注册表或自动基线更新。
 

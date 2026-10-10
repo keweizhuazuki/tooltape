@@ -168,10 +168,10 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Verification
 
-- Optional Jupiter adapter: 20 tests passed locally under both 5.14.4 and 6.0.3, including actual JAR resources and real named dynamic-child outcomes. The [isolated binary-consumer workflow](.github/workflows/jupiter.yml) tests one packaged adapter on Java 17/21; adapter compatibility is limited to these explicitly tested versions.
+- Optional Jupiter adapter: 20 tests passed locally under both 5.14.4 and 6.0.3, including actual JAR resources and real named dynamic-child outcomes. The [verified binary-consumer run](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449) passed 7 consumer tests in each Java 17/21 × Jupiter 5.14.4/6.0.3 combination, all against the same packaged adapter. Adapter compatibility is limited to these explicitly tested versions.
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 35 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/10/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/11/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
