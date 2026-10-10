@@ -46,9 +46,15 @@ final class CliReport {
   /** Construct the same v1 validation report for a single command or a batch result. */
   static Map<String, Object> validationReport(
       String filename, boolean requireV2, boolean regularFileOnly) {
+    return validationReport(filename, requireV2, regularFileOnly, null);
+  }
+
+  /** Resolve manifest entries inside the same safe, per-input error boundary. */
+  static Map<String, Object> validationReport(
+      String filename, boolean requireV2, boolean regularFileOnly, Path directory) {
     Map<String, Object> report = base("validate");
     try {
-      Path path = Path.of(filename);
+      Path path = directory == null ? Path.of(filename) : directory.resolve(filename);
       // Batch-only precheck follows symbolic links and rejects obvious directories/devices/FIFOs.
       // It is not an atomic open: paths can change afterward and filesystem I/O can still block.
       if (regularFileOnly && !Files.isRegularFile(path)) {

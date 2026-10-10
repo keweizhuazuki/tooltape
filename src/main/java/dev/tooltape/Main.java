@@ -87,6 +87,7 @@ public final class Main {
             + "  validate <file>\n"
             + "  validate --json [--require-v2] <file>\n"
             + "  validate-batch --json [--require-v2] <file>... (1..64 files)\n"
+            + "  validate-batch --json [--require-v2] --manifest <file>\n"
             + "  diff <expected> <actual>\n"
             + "  diff --json [--require-v2] <expected> <actual>\n"
             + "  --version\n"

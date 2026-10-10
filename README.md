@@ -50,7 +50,7 @@ CI produces a verified JAR and SHA-256 checksums. It is not published on Maven C
 The tested v0.2 build can currently be downloaded from its successful CI run:
 
 ```sh
-gh run download 38042920703 --repo keweizhuazuki/tooltape --name tooltape-dist-9813415d22ccc406a47a64cdfe254093a00536c7
+gh run download 38046405558 --repo keweizhuazuki/tooltape --name tooltape-dist-a89ba0f9e7c625afe0263ba3940ee7d261cddf7f
 sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
@@ -74,7 +74,7 @@ java -jar target/tooltape.jar inspect target/weather.tape
 
 #### Windows PowerShell
 
-For portable Windows CLI jobs, use ASCII-only full paths. Hosted JDK 17/21 launchers can replace characters outside the active code page before ToolTape receives them; quoting alone does not fix this. UTF-8 tape contents remain supported. [Measured filename limitation →](docs/BATCH_REPORTS.md#windows-filename-transport)
+For portable Windows CLI jobs, use ASCII-only full paths. Hosted JDK 17/21 launchers can replace characters outside the active code page before ToolTape receives them; quoting alone does not fix this. For Unicode fixture filenames, use the UTF-8 batch manifest below with an ASCII manifest argument. UTF-8 tape contents remain supported. [Measured filename limitation →](docs/BATCH_REPORTS.md#windows-filename-transport)
 
 ```powershell
 git clone https://github.com/keweizhuazuki/tooltape.git
@@ -109,6 +109,14 @@ JSON reports have a versioned contract and exit codes: **0** valid/matching, **1
 For v2-only CI jobs, add `--require-v2` immediately after `--json` in either command. Legacy inputs then fail with exit 2 and `LEGACY_TAPE`, while default behavior and the report v1 structure stay unchanged. This checks schema eligibility, not authenticity or business success.
 
 For an explicit fixture inventory, `validate-batch --json [--require-v2] <file>...` checks up to 64 files serially, collects ordinary failures and returns one index-only report with aggregate exit 0/2. Existing single-file commands stay unchanged. [Batch contract and portable CI examples →](docs/BATCH_REPORTS.md)
+
+Unicode filenames can be listed inside an explicit UTF-8 manifest, avoiding native argv conversion for those entries:
+
+```sh
+java -jar target/tooltape.jar validate-batch --json --manifest examples/manifest/inventory.json
+```
+
+The runnable example includes `天气 重试🌧.tape`; paths are relative to the manifest, not the working directory. The manifest is bounded to 64 KiB/64 entries and has no discovery or URL loading. Its own Windows command-line path should remain ASCII. [Schema and path rules →](docs/BATCH_REPORTS.md#utf-8-manifest-unicode-filenames-without-unicode-argv)
 
 [Report schema, compatibility rules and shell examples →](docs/CLI_REPORTS.md)
 
@@ -168,13 +176,17 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Verification
 
+- UTF-8 manifests: [six-platform/JDK run](https://github.com/keweizhuazuki/tooltape/actions/runs/38046405558) passed native packaged-CLI Unicode/emoji/spaced-filename tests from a conflicting working directory. Linux/macOS ran 234 processes and Windows 215, with native launches and diagnostic bridges counted separately. [Measured boundaries →](docs/BATCH_REPORTS.md#verified-platforms)
+
 - Optional Jupiter adapter: 20 tests passed locally under both 5.14.4 and 6.0.3, including actual JAR resources and real named dynamic-child outcomes. The [verified binary-consumer run](https://github.com/keweizhuazuki/tooltape/actions/runs/38044661449) passed 7 consumer tests in each Java 17/21 × Jupiter 5.14.4/6.0.3 combination, all against the same packaged adapter. Adapter compatibility is limited to these explicitly tested versions.
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 35 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/11/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
+- [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/12/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 232 parser/canonicalization checks and 72 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
+
+- Bounded UTF-8 fixture manifests bypass native argv conversion for Unicode filenames, with manifest-relative resolution and unchanged safe batch reports
 
 - Optional immutable Jupiter replay fixtures with named dynamic tests, JAR-resource loading and caller-owned bounded stream parsing
 
@@ -211,7 +223,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Next upgrade
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
-2. Extend replay-fixture workflow examples with multiple independently authored application scenarios before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
+2. Extend the explicit manifest and replay-fixture workflow examples with multiple independently authored application scenarios before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
 3. Extend cross-engine checks with assistive-technology review and physical-device testing; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.

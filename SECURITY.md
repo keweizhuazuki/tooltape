@@ -33,3 +33,7 @@ JSON reports omit captured values and identifying paths/labels, but policy hashe
 ## Jupiter fixture diagnostics
 
 The optional Jupiter adapter requires a complete policy-matching v2 recording before running its callback and has no live delegate. Workflow code still runs with normal JVM privileges. Assertions, replay divergences and exceptions can expose captured values, field/tool names, filesystem paths or arbitrary workflow messages in test reports; these reports do not inherit the CLI JSON privacy contract. Review fixtures and log/artifact access before sharing. Each invocation reads the fixture again, so keep source files immutable during a reproducible test run. Caller-supplied streams remain caller-owned and may block; parser byte limits are not timeouts.
+
+## Manifest input boundaries
+
+UTF-8 batch manifests accept only a fixed versioned schema, at most 64 KiB and 64 relative path entries of at most 4,096 UTF-16 units each. The complete schema/path policy is checked before fixture reads. Errors do not echo manifest contents, paths, parser offsets or exception messages. Explicit UNC/device manifest operands and absolute/drive/UNC/URI-style entries are rejected; there is no URL loader or discovery mechanism. Relative `..` and symlinks are allowed, so this is not directory confinement and mounted/symlinked storage may still be remote. Treat manifests as reviewed filesystem-read instructions, not untrusted sandbox input. The regular-file race and external-timeout caveats above still apply.
