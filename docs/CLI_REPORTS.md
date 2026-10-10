@@ -7,7 +7,7 @@ java -jar target/tooltape.jar validate --json recording.tape
 java -jar target/tooltape.jar diff --json expected.tape actual.tape
 ```
 
-Only these two commands support JSON. Put `--json` immediately after the command. Every structured invocation emits one canonical JSON object and one newline on stdout, with no application stderr text. JVM options, agents or startup diagnostics can emit their own output before ToolTape runs; do not inject logging into the report stream. Property order is canonical but consumers should parse JSON rather than depend on formatting. No network access or live tool invocation occurs.
+These two commands use the single-report JSON contract below. [Inventory validation](BATCH_REPORTS.md) has a separate batch envelope. Put `--json` immediately after the command. Every structured invocation emits one canonical JSON object and one newline on stdout, with no application stderr text. JVM options, agents or startup diagnostics can emit their own output before ToolTape runs; do not inject logging into the report stream. Property order is canonical but consumers should parse JSON rather than depend on formatting. No network access or live tool invocation occurs.
 
 Actual generated examples: [closed-session validation](../examples/reports/validate.json), [matching events](../examples/reports/match.json), [missing-file error](../examples/reports/read-error.json). They use the checked-in synthetic weather fixture; the error example intentionally supplies a nonexistent second input.
 

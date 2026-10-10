@@ -102,6 +102,8 @@ JSON 报告采用版本化契约和明确退出码：**0** 有效或匹配，**1
 
 仅允许 v2 的 CI 任务可在任一命令的 `--json` 后添加 `--require-v2`。旧格式输入会以退出码 2 和 `LEGACY_TAPE` 失败；默认行为及报告 v1 结构保持不变。这只检查格式准入，不证明来源真实性或业务成功。
 
+明确的录制清单可使用 `validate-batch --json [--require-v2] <file>...`：串行检查最多 64 个文件，收集普通失败，以索引关联结果，并返回一份报告及汇总退出码 0/2。原有单文件命令保持不变。[批量契约及跨平台 CI 示例 →](docs/BATCH_REPORTS.zh-CN.md)
+
 [报告结构、兼容规则及跨平台命令 →](docs/CLI_REPORTS.zh-CN.md)
 
 ## 接入业务代码
@@ -157,11 +159,13 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 ## 验证状态
 
-- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 164 个真实 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
+- 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 164 个单命令及 94 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/9/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)通过 153 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
+
+- 有明确数量上限、保持输入顺序的录制清单校验，使用独立 JSON 外层、安全逐项错误及汇总 CI 状态
 
 - JSON 校验/比较新增可选 `--require-v2`，安全拒绝旧格式，保持默认行为
 
@@ -194,7 +198,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 下次升级
 
 1. 将经过应用测试的适配器提取为独立 Spring AI 模块，验证第二个应用和框架版本后再承诺广泛兼容。
-2. 设计有输入数量上限、明确汇总退出语义和版本化外层结构的多录制 CI 报告。
+2. 在有多个独立生成的回归场景后，再评估成对比较清单；候选录制生成及基线更新仍需显式操作。
 3. 在跨引擎检查基础上增加辅助技术评审和真机测试；引擎模拟不代表原生 Safari/iOS 或 Android 兼容。
 4. 设计安全的嵌套字段投影和按工具策略，避免任意字符串泄露或静默削弱指纹校验。
 5. 在明确密钥管理方案后再设计可信来源认证；当前来源标签和校验和不能证明来源真实性。

@@ -14,6 +14,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & java -ea -cp 'target/classes;target/test-classes' dev.tooltape.CliProcessTest
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& java -ea -cp 'target/classes;target/test-classes' dev.tooltape.BatchProcessTest
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & javac --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Output 'Built target/tooltape.jar'

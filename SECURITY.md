@@ -23,3 +23,9 @@ Both raw and canonical JSON are bounded to 16 MiB; canonical event payloads acro
 Oversized sanitized inputs that cannot fit the remaining tape budget fail before invoking the real tool. An oversized result is discovered after the tool returns, poisons the recording and prevents further calls; its external effect may already have happened.
 
 Credential checks normalize separators before matching names. This changes the policy algorithm to scalar-v2 and intentionally invalidates older v2 fingerprints. Re-record reviewed fixtures rather than hand-editing policy metadata. Arbitrary allowed string values still require privacy review.
+
+## CI report boundaries
+
+JSON reports omit captured values and identifying paths/labels, but policy hashes, event counts and positional indexes still reveal configuration/session structure. Review reports before sharing them. `--require-v2` is a schema eligibility rule, not proof of authenticity, intended capture policy or business success.
+
+`validate-batch` accepts at most 64 explicit files and processes them serially with the existing per-tape limits. It does not discover files or invoke tools. Its batch-only regular-file precheck follows symlinks; an attacker able to replace paths afterward can race that check, and filesystem operations can block. Use a controlled fixture directory and an external CI timeout. This check does not make arbitrary filesystem inputs safe or change the existing reader/single-command contracts.

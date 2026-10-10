@@ -7,7 +7,7 @@ java -jar target/tooltape.jar validate --json recording.tape
 java -jar target/tooltape.jar diff --json expected.tape actual.tape
 ```
 
-仅这两个命令支持 JSON，`--json` 必须紧跟命令。结构化调用始终向 stdout 输出一行规范 JSON 及换行，ToolTape 本身不输出 stderr。JVM 参数、代理或启动诊断仍可能先行输出，请勿将其日志注入报告流。应解析 JSON，不要依赖属性排列。命令不联网，也不会调用真实工具。
+这两个命令使用下述单份 JSON 报告契约；[清单校验](BATCH_REPORTS.zh-CN.md)使用独立批量外层。`--json` 必须紧跟命令。结构化调用始终向 stdout 输出一行规范 JSON 及换行，ToolTape 本身不输出 stderr。JVM 参数、代理或启动诊断仍可能先行输出，请勿将其日志注入报告流。应解析 JSON，不要依赖属性排列。命令不联网，也不会调用真实工具。
 
 实际生成的示例：[关闭会话校验](../examples/reports/validate.json)、[事件一致](../examples/reports/match.json)、[缺失文件错误](../examples/reports/read-error.json)。前两项使用仓库自带天气合成数据；错误示例故意传入不存在的第二个文件。
 
