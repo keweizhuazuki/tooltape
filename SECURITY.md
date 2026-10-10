@@ -3,7 +3,7 @@
 - Default policy captures **no input/output fields**. It still records static tool identifier, sequence, timing, status and exception class name.
 - Explicit allowlists capture selected top-level scalar values. Review those values for personal or confidential data. Arbitrary scalar content cannot be reliably classified as a secret.
 - Credential-like field names (token, password, authorization, cookie, API key, secret, credential, private key) are excluded even when allowlisted. Nested objects/lists become `[REDACTED]`; project safe scalar fields in your adapter instead.
-- Exception messages, stack traces, request headers, environment variables and model prompts are never recorded by the core.
+- The core does not automatically collect exception messages, stack traces, request headers, environment variables or model prompts. An explicitly allowlisted scalar can still contain any of this private content, even under an ordinary field name such as `message` or `prompt`. Field-name filtering is not content classification; review the values before enabling capture. Thrown exceptions contribute their class name, not their message or stack trace.
 - No telemetry or network client is included. The viewer reads local files in your browser and has no upload feature.
 - Replay does not accept a live tool delegate. Your orchestration code can still cause side effects outside the Tool interface: isolate those yourself. Replay is not a JVM sandbox.
 - Recorded errors replay as RecordedToolException with originalType, not reflectively constructed arbitrary exception classes. Translate into domain errors in your adapter if your code branches on exception types.
