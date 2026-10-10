@@ -305,12 +305,25 @@ public final class BatchProcessTest {
       Files.copy(closed.path(), directory.resolve(name));
       Fixture fixture =
           new Fixture(Path.of(name.equals("-") ? name : "./" + name), closed.tape(), null);
-      for (boolean requireV2 : List.of(false, true))
-        verifyBatch(
-            runIn(directory, Main.class, arguments(requireV2, fixture, fixture)),
-            requireV2,
-            fixture,
-            fixture);
+      for (boolean requireV2 : List.of(false, true)) {
+        String[] arguments = arguments(requireV2, fixture, fixture);
+        ProcessResult result = runIn(directory, Main.class, arguments);
+        try {
+          verifyBatch(result, requireV2, fixture, fixture);
+        } catch (AssertionError failure) {
+          ProcessResult probe = runIn(directory, ArgumentProbeMain.class, arguments);
+          throw new AssertionError(
+              "Literal filename "
+                  + Json.write(name)
+                  + ", requireV2="
+                  + requireV2
+                  + "; CLI="
+                  + result
+                  + "; argv probe="
+                  + probe,
+              failure);
+        }
+      }
     }
     // An existing match does not cause explicit operands to be glob-expanded.
     Path globPath;
@@ -653,6 +666,22 @@ public final class BatchProcessTest {
   }
 
   private record ProcessResult(int exitCode, String stdout, String stderr) {}
+
+  /** Report synthetic test argument code points to diagnose native launcher encoding failures. */
+  public static final class ArgumentProbeMain {
+    public static void main(String[] args) {
+      System.out.print(
+          Json.write(
+              Map.of(
+                  "argumentCodePoints",
+                  Arrays.stream(args).map(value -> value.codePoints().boxed().toList()).toList(),
+                  "nativeEncoding",
+                  System.getProperty("native.encoding", ""),
+                  "fileEncoding",
+                  System.getProperty("file.encoding", ""))));
+      System.out.print('\n');
+    }
+  }
 
   /** The OS cannot carry NUL in argv; inject it inside a real child JVM before invoking the CLI. */
   public static final class InvalidPathMain {
