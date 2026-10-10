@@ -9,8 +9,8 @@ class Node {
  constructor(tag){this.tag=tag;this.children=[];this.listeners={};this.attributes={};this.dataset={};this.style={};this.value='';this.checked=false;this.hidden=false;this.className='';this._text='';this.classList={toggle:(name,on)=>{const parts=new Set(this.className.split(' ').filter(Boolean));if(on)parts.add(name);else parts.delete(name);this.className=[...parts].join(' ');},add:name=>this.classList.toggle(name,true),remove:name=>this.classList.toggle(name,false)};}
  set textContent(x){this._text=String(x);this.children=[];}get textContent(){return this._text+this.children.map(n=>n.textContent).join('');}
  set innerHTML(x){throw Error('Unsafe innerHTML rendering');}append(...nodes){for(const n of nodes){if(n.tag==='#fragment')this.children.push(...n.children);else this.children.push(n);}}replaceChildren(...nodes){this._text='';this.children=[];this.append(...nodes);}
- setAttribute(k,v){this.attributes[k]=v;}addEventListener(k,fn){(this.listeners[k]??=[]).push(fn);}fire(k,event={}){for(const fn of this.listeners[k]||[])fn(event);}click(){if(!this.disabled)this.fire('click');}focus(options){if(!this.disabled){document.activeElement=this;this.focusOptions=options;}}scrollIntoView(options){this.scrollOptions=options;this.scrolls=(this.scrolls||0)+1;}
- descendants(){return this.children.flatMap(c=>[c,...c.descendants()]);}querySelectorAll(q){if(q==='button[data-position]')return this.descendants().filter(n=>n.tag==='button'&&n.dataset.position!==undefined);return [];}querySelector(q){if(q==='button[data-position]')return this.querySelectorAll(q)[0]||null;let m=q.match(/\[data-position="(\d+)"\]/);return m?this.descendants().find(n=>n.dataset.position===m[1]):null;}
+ setAttribute(k,v){this.attributes[k]=v;}getAttribute(k){return this.attributes[k]??null;}addEventListener(k,fn){(this.listeners[k]??=[]).push(fn);}fire(k,event={}){for(const fn of this.listeners[k]||[])fn(event);}click(){if(!this.disabled)this.fire('click');}focus(options){if(!this.disabled){document.activeElement=this;this.focusOptions=options;}}scrollIntoView(options){this.scrollOptions=options;this.scrolls=(this.scrolls||0)+1;}
+ descendants(){return this.children.flatMap(c=>[c,...c.descendants()]);}querySelectorAll(q){if(q==='button[data-position]')return this.descendants().filter(n=>n.tag==='button'&&n.dataset.position!==undefined);if(q==='pre[aria-label]')return this.descendants().filter(n=>n.tag==='pre'&&n.getAttribute('aria-label')!==null);return [];}querySelector(q){if(q==='button[data-position]'||q==='pre[aria-label]')return this.querySelectorAll(q)[0]||null;let m=q.match(/\[data-position="(\d+)"\]/);return m?this.descendants().find(n=>n.dataset.position===m[1]):null;}
 }
 const nodes={};for(const m of html.matchAll(/id="([^"]+)"/g))nodes[m[1]]=new Node('div');
 const document=new Node('document');document.body=new Node('body');document.activeElement=document.body;document.getElementById=x=>nodes[x];document.createElement=tag=>new Node(tag);document.createDocumentFragment=()=>new Node('#fragment');
@@ -419,6 +419,150 @@ nodes.timeline.replaceChildren=function(...children){
    check(()=>assert.equal(callAt(0).attributes['aria-pressed'],'true'));
   }
  }
+ // Async inspector replacement restores only a currently focused owned payload.
+ // Model assertions name the exact replacement node; browser focus and visibility
+ // remain separate checks in the real-browser suite.
+ const payloadAt=label=>nodes.inspector.querySelectorAll('pre[aria-label]').find(node=>node.getAttribute('aria-label')===label);
+ const focusPrimary=normalTape(makeRows([
+  {name:'focus.first',input:'{"private":"input first"}',output:'{"private":"output first"}'},
+  {name:'focus.second',input:'{"private":"input second"}',status:'ERROR',output:'java.io.IOException'}
+ ]));
+ const focusComparison=normalTape(makeRows([
+  {name:'focus.first',input:'{"private":"comparison first"}',output:'{"private":"comparison output"}'},
+  {name:'focus.second',input:'{"private":"comparison second"}',status:'ERROR',output:'java.lang.IllegalStateException'}
+ ]));
+ const loadFocusPair=async()=>{
+  await chooseFile('open-file',file(focusPrimary,'focus-primary.tape'));
+  await chooseFile('compare-file',file(focusComparison,'focus-comparison.tape'));
+ };
+ const expectPayloadFocus=(label,previous)=>{
+  const replacement=payloadAt(label);
+  check(()=>assert.ok(replacement,'The replacement '+label+' must exist'));
+  check(()=>assert.notEqual(replacement,previous));
+  check(()=>assert.equal(document.activeElement,replacement));
+  check(()=>assert.equal(replacement.scrollOptions.block,'nearest'));
+  check(()=>assert.equal(replacement.focusOptions.preventScroll,true));
+ };
+ const expectInspectorFocus=()=>{
+  check(()=>assert.equal(document.activeElement,nodes.inspector));
+  check(()=>assert.equal(nodes.inspector.scrollOptions.block,'nearest'));
+  check(()=>assert.equal(nodes.inspector.focusOptions.preventScroll,true));
+ };
+ for(const [label,position] of [['input',0],['output',0],['recorded exception',1],['comparison input',0],['comparison output',0],['comparison exception',1]]){
+  await loadFocusPair();callAt(position).click();
+  const pendingFocus=deferredFile('focus-replacement.tape');
+  await chooseFile('compare-file',pendingFocus.file);
+  const previous=payloadAt(label);previous.focus();expectUnchanged=unchangedTimeline();
+  await pendingFocus.finish(focusComparison);
+  expectPayloadFocus(label,previous);expectSelection(position);expectUnchanged();
+  check(()=>assert.doesNotMatch(nodes.announcer.textContent,/private|input first|output first|comparison first|comparison output|comparison second/));
+ }
+ // A matching comparison removes its payload roles. Do not redirect to a primary
+ // panel merely because it has the same text or an input/output suffix.
+ for(const [label,position] of [['comparison input',0],['comparison output',0],['comparison exception',1]]){
+  await loadFocusPair();callAt(position).click();
+  const matchingComparison=deferredFile('focus-matching.tape');
+  await chooseFile('compare-file',matchingComparison.file);
+  payloadAt(label).focus();expectUnchanged=unchangedTimeline();
+  await matchingComparison.finish(focusPrimary);
+  check(()=>assert.equal(payloadAt(label),undefined));
+  expectInspectorFocus();expectSelection(position);expectUnchanged();
+ }
+ // Focus is sampled at render time, not file-read start. Newer focus anywhere
+ // outside the replaced payloads, including the surviving inspector, stays put.
+ const unrelatedPayload=document.createElement('pre');unrelatedPayload.setAttribute('aria-label','input');
+ for(const destination of ['search','row','body','inspector','unrelated-payload']){
+  await loadFocusPair();payloadAt('input').focus();
+  const pendingFocus=deferredFile('focus-external.tape');
+  await chooseFile('compare-file',pendingFocus.file);
+  const target=destination==='row'?callAt(1):destination==='body'?document.body:destination==='unrelated-payload'?unrelatedPayload:nodes[destination];
+  target.focus();const scrolls=nodes.inspector.scrolls||0;
+  await pendingFocus.finish(focusComparison);
+  check(()=>assert.equal(document.activeElement,target));
+  check(()=>assert.equal(nodes.inspector.scrolls||0,scrolls));
+  check(()=>assert.ok(nodes.inspector.querySelectorAll('pre[aria-label]').every(node=>!node.scrolls)));
+ }
+ await loadFocusPair();payloadAt('input').focus();
+ const changedPayloadFocus=deferredFile('focus-newer-panel.tape');
+ await chooseFile('compare-file',changedPayloadFocus.file);
+ const currentOutput=payloadAt('output');currentOutput.focus();
+ await changedPayloadFocus.finish(focusComparison);expectPayloadFocus('output',currentOutput);
+ // An unsuccessful read does not replace, refocus or scroll the valid payload.
+ await loadFocusPair();const failedReadPayload=payloadAt('comparison input');failedReadPayload.focus();
+ await chooseFile('compare-file',file('invalid','focus-invalid.tape'));
+ check(()=>assert.equal(document.activeElement,failedReadPayload));
+ check(()=>assert.equal(payloadAt('comparison input'),failedReadPayload));
+ check(()=>assert.equal(failedReadPayload.scrolls,undefined));
+ // A changed selection while reading owns the eventual replacement focus.
+ await loadFocusPair();payloadAt('input').focus();
+ const changedSelectionFocus=deferredFile('focus-newer-selection.tape');
+ await chooseFile('compare-file',changedSelectionFocus.file);
+ callAt(1).focus();callAt(1).click();
+ check(()=>assert.equal(document.activeElement,callAt(1)));
+ const currentException=payloadAt('recorded exception');currentException.focus();
+ await changedSelectionFocus.finish(focusComparison);
+ expectPayloadFocus('recorded exception',currentException);expectSelection(1);
+ check(()=>assert.match(nodes.inspector.textContent,/focus\.second/));
+ // Off-page selection, filtered page, row identity and filter state are retained.
+ await chooseFile('open-file',file(selectionPagePrimary,'focus-pages.tape'));
+ filter('keep.');nodes['errors-only'].checked=true;nodes['errors-only'].fire('change');nodes['next-page'].click();
+ const pageFocus=deferredFile('focus-pages-comparison.tape');
+ await chooseFile('compare-file',pageFocus.file);
+ const pageInput=payloadAt('input');pageInput.focus();expectUnchanged=unchangedTimeline();
+ await pageFocus.finish(selectionPagePrimary);
+ expectPayloadFocus('input',pageInput);expectSelection(0);expectUnchanged();
+ // Stale comparison completion cannot rebuild or refocus the newer view, whether
+ // canceled by replacement, Clear comparison, or a successful new primary.
+ for(const superseding of ['comparison','clear','primary'])for(const outcome of ['success','failure']){
+  await loadFocusPair();payloadAt('comparison input').focus();
+  const staleFocus=deferredFile('focus-stale.tape');
+  await chooseFile('compare-file',staleFocus.file);
+  if(superseding==='comparison')await chooseFile('compare-file',file(focusPrimary,'focus-new-comparison.tape'));
+  else if(superseding==='clear')nodes['clear-compare'].click();
+  else await chooseFile('open-file',file(focusPrimary,'focus-new-primary.tape'));
+  const current=payloadAt('output');current.focus();
+  const children=nodes.inspector.children.slice(),announcement=nodes.announcer.textContent;
+  if(outcome==='success')await staleFocus.finish(focusComparison);else await staleFocus.fail();
+  check(()=>assert.equal(document.activeElement,current));
+  check(()=>assert.deepEqual(nodes.inspector.children,children));
+  check(()=>assert.equal(nodes.announcer.textContent,announcement));
+  check(()=>assert.equal(nodes.notice.hidden,true));
+ }
+ // Clear uses the same ownership rule. Comparison-only removal restores the
+ // primary bookmark while the missing payload role falls back to the inspector.
+ await loadFocusPair();
+ const clearInput=payloadAt('input');clearInput.focus();nodes['clear-compare'].click();
+ expectPayloadFocus('input',clearInput);
+ await loadSelectionPair();payloadAt('comparison input').focus();
+ const shortenedFocus=deferredFile('focus-shortened.tape');
+ await chooseFile('compare-file',shortenedFocus.file);expectUnchanged=unchangedTimeline();
+ await shortenedFocus.finish(selectionPrimary);
+ expectInspectorFocus();expectSelection(1);expectUnchanged();
+ await loadSelectionPair();payloadAt('comparison input').focus();nodes['clear-compare'].click();
+ expectInspectorFocus();expectSelection(1);
+ // New primary reads use their current payload role but retain existing reset
+ // behavior. Removed output/exception roles and empty tapes use the fallback.
+ await loadFocusPair();callAt(1).click();
+ const newPrimaryFocus=deferredFile('focus-primary-replacement.tape');
+ await chooseFile('open-file',newPrimaryFocus.file);
+ const oldInput=payloadAt('input');oldInput.focus();
+ await newPrimaryFocus.finish(focusPrimary);
+ expectPayloadFocus('input',oldInput);expectSelection(0);
+ check(()=>assert.equal(nodes.comparison.hidden,true));
+ callAt(1).click();payloadAt('recorded exception').focus();
+ await chooseFile('open-file',file(focusPrimary,'focus-status-change.tape'));
+ expectInspectorFocus();expectSelection(0);
+ payloadAt('input').focus();
+ await chooseFile('open-file',file(normalTape([]),'focus-empty.tape'));
+ expectInspectorFocus();
+ check(()=>assert.equal(nodes.inspector.querySelectorAll('pre[aria-label]').length,0));
+ check(()=>assert.match(nodes.inspector.textContent,/Select a recorded call/));
+ await chooseFile('compare-file',file(focusComparison,'focus-empty-extension.tape'));
+ nodes['jump-divergence'].click();payloadAt('comparison input').focus();
+ await chooseFile('compare-file',file(normalTape([]),'focus-empty-comparison.tape'));
+ expectInspectorFocus();
+ check(()=>assert.equal(nodes.inspector.querySelectorAll('pre[aria-label]').length,0));
+ check(()=>assert.match(nodes.inspector.textContent,/Select a recorded call/));
  // Search uses once-decoded JSON characters as well as original canonical text.
  // These ordinary files exercise the public filter; no helper or state is replaced.
  const unicodeCases=[
@@ -689,5 +833,5 @@ nodes.timeline.replaceChildren=function(...children){
  check(()=>assert.equal(nodes['skip-pages'].hidden,false));
  skipTo('skip-pages',nodes['next-page']);
  skipDetails();
- console.log('PASS: '+checks+' DOM-model interaction, once-decoded Unicode payload search, bounded pagination through 50,000 valid calls, native skip routes and focus/selection continuity, primary-selection restoration after comparison-only inspection, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, notice ownership, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
+ console.log('PASS: '+checks+' DOM-model interaction, focused-payload replacement and fallback, once-decoded Unicode payload search, bounded pagination through 50,000 valid calls, native skip routes and focus/selection continuity, primary-selection restoration after comparison-only inspection, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, notice ownership, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
 })().catch(e=>{console.error(e);process.exit(1)});
