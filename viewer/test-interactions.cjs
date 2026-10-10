@@ -276,6 +276,149 @@ nodes.timeline.replaceChildren=function(...children){
  const skipDetails=()=>skipTo('skip-details',nodes.inspector);
  const normalTape=rows=>'TOOLTAPE\t1\n'+(rows.length?rows.join('\n')+'\n':'');
  const makeRows=rows=>rows.map((row,index)=>[index,'1',ctx.encode(row.name||'test.run'),ctx.encode(row.input||'{}'),row.status||'OK',ctx.encode(row.output||'{}')].join('\t'));
+ // A comparison-only inspection must not replace the last primary selection.
+ // Restoration updates existing row markers, without rebuilding the timeline or
+ // changing its filters/page. Focus still follows the existing Clear contract.
+ const selectionRows=makeRows([{name:'primary.first'},{name:'primary.saved'},{name:'comparison.extra'}]);
+ const selectionPrimary=normalTape(selectionRows.slice(0,2));
+ const selectionComparison=normalTape(selectionRows);
+ const loadSelectionPair=async()=>{
+  await chooseFile('open-file',file(selectionPrimary,'selection-primary.tape'));
+  callAt(1).click();
+  await chooseFile('compare-file',file(selectionComparison,'selection-extension.tape'));
+  nodes['jump-divergence'].click();
+  check(()=>assert.equal(run('state.selected'),2));
+  check(()=>assert.match(nodes.inspector.textContent,/missing from the primary/));
+  check(()=>assert.ok(calls().every(button=>button.attributes['aria-pressed']==='false')));
+ };
+ const expectSelection=position=>{
+  check(()=>assert.equal(run('state.selected'),position));
+  for(const button of calls()){
+   const selected=Number(button.dataset.position)===position;
+   check(()=>assert.equal(button.attributes['aria-pressed'],String(selected)));
+   check(()=>assert.equal(button.className.split(' ').includes('selected'),selected));
+  }
+ };
+ const unchangedTimeline=()=>{
+  const before={rows:calls(),renders:timelineRenders,page:run('state.pageStart'),query:nodes.search.value,
+   errors:nodes['errors-only'].checked,range:nodes['visible-count'].textContent};
+  return ()=>{
+   check(()=>assert.deepEqual(calls(),before.rows));
+   check(()=>assert.equal(timelineRenders,before.renders));
+   check(()=>assert.equal(run('state.pageStart'),before.page));
+   check(()=>assert.equal(nodes.search.value,before.query));
+   check(()=>assert.equal(nodes['errors-only'].checked,before.errors));
+   check(()=>assert.equal(nodes['visible-count'].textContent,before.range));
+  };
+ };
+ await loadSelectionPair();
+ // Repeated comparison-only jumps cannot overwrite the primary bookmark.
+ nodes['jump-divergence'].click();nodes['jump-divergence'].click();
+ let expectUnchanged=unchangedTimeline();
+ nodes['clear-compare'].focus();nodes['clear-compare'].click();
+ expectSelection(1);expectUnchanged();
+ check(()=>assert.match(nodes.inspector.textContent,/primary\.saved/));
+ check(()=>assert.doesNotMatch(nodes.inspector.textContent,/COMPARISON INPUT|Select a recorded call/));
+ check(()=>assert.equal(document.activeElement,nodes['compare-button']));
+ check(()=>assert.equal(nodes.announcer.textContent,'Comparison cleared.'));
+ // A shorter successful comparison restores only when neither tape has the
+ // selected position; a failed replacement leaves inspection and bookmark alone.
+ await loadSelectionPair();
+ filter('primary.saved');nodes.search.focus();expectUnchanged=unchangedTimeline();
+ await chooseFile('compare-file',file(selectionPrimary,'selection-equal.tape'));
+ expectSelection(1);expectUnchanged();
+ check(()=>assert.equal(document.activeElement,nodes.search));
+ check(()=>assert.match(nodes.inspector.textContent,/primary\.saved/));
+ check(()=>assert.match(nodes.inspector.textContent,/Matches the comparison/));
+ await loadSelectionPair();
+ expectUnchanged=unchangedTimeline();
+ const comparisonInspector=nodes.inspector.children.slice();
+ await chooseFile('compare-file',file('invalid','selection-invalid.tape'));
+ expectSelection(2);expectUnchanged();
+ check(()=>assert.deepEqual(nodes.inspector.children,comparisonInspector));
+ check(()=>assert.equal(document.activeElement,nodes.inspector));
+ check(()=>assert.match(nodes['compare-note'].textContent,/selection-extension.tape/));
+ nodes['clear-compare'].click();expectSelection(1);expectUnchanged();
+ check(()=>assert.equal(document.activeElement,nodes.inspector));
+ check(()=>assert.equal(nodes.notice.hidden,true));
+ await loadSelectionPair();
+ expectUnchanged=unchangedTimeline();
+ const changedExtension=normalTape(makeRows([{name:'primary.first'},{name:'primary.saved'},{name:'comparison.replaced'}]));
+ await chooseFile('compare-file',file(changedExtension,'selection-still-longer.tape'));
+ expectSelection(2);expectUnchanged();
+ check(()=>assert.match(nodes.inspector.textContent,/comparison\.replaced/));
+ check(()=>assert.equal(document.activeElement,nodes.inspector));
+ await chooseFile('compare-file',file(normalTape(selectionRows.slice(0,1)),'selection-shorter.tape'));
+ expectSelection(1);expectUnchanged();
+ check(()=>assert.match(nodes.inspector.textContent,/primary\.saved/));
+ check(()=>assert.match(nodes.inspector.textContent,/missing from the comparison/));
+ check(()=>assert.equal(document.activeElement,nodes.inspector));
+ // A primary call selected after comparison-only inspection becomes the new
+ // bookmark. Selecting a valid-primary divergence must update it too.
+ await loadSelectionPair();callAt(0).click();nodes['jump-divergence'].click();
+ nodes['clear-compare'].click();expectSelection(0);
+ const primaryDrift=normalTape(makeRows([{name:'primary.first'},{name:'primary.changed'}]));
+ await chooseFile('compare-file',file(primaryDrift,'selection-primary-drift.tape'));
+ nodes['jump-divergence'].click();expectSelection(1);
+ await chooseFile('compare-file',file(selectionComparison,'selection-extension-again.tape'));
+ nodes['jump-divergence'].click();nodes['clear-compare'].click();expectSelection(1);
+ // New primaries discard older bookmarks, including after a failed primary
+ // replacement. Empty primaries retain their honest empty inspector on reset.
+ await loadSelectionPair();
+ await chooseFile('open-file',file('invalid','selection-invalid-primary.tape'));
+ nodes['clear-compare'].click();expectSelection(1);
+ await chooseFile('open-file',file(selectionPrimary,'selection-new-primary.tape'));
+ await chooseFile('compare-file',file(selectionComparison,'selection-new-extension.tape'));
+ nodes['jump-divergence'].click();nodes['clear-compare'].click();expectSelection(0);
+ check(()=>assert.match(nodes.inspector.textContent,/primary\.first/));
+ callAt(1).click();
+ await chooseFile('open-file',file(normalTape([]),'selection-empty-primary.tape'));
+ await chooseFile('compare-file',file(selectionComparison,'selection-empty-extension.tape'));
+ nodes['jump-divergence'].click();expectUnchanged=unchangedTimeline();
+ await chooseFile('compare-file',file(normalTape([]),'selection-empty-comparison.tape'));
+ expectUnchanged();
+ check(()=>assert.equal(calls().length,0));
+ check(()=>assert.match(nodes.inspector.textContent,/Select a recorded call/));
+ check(()=>assert.doesNotMatch(nodes.inspector.textContent,/COMPARISON INPUT|missing from the primary/));
+ check(()=>assert.equal(document.activeElement,nodes.inspector));
+ await chooseFile('compare-file',file(selectionComparison,'selection-empty-extension-again.tape'));
+ nodes['jump-divergence'].click();expectUnchanged=unchangedTimeline();
+ nodes['clear-compare'].focus();nodes['clear-compare'].click();expectUnchanged();
+ check(()=>assert.match(nodes.inspector.textContent,/Select a recorded call/));
+ check(()=>assert.equal(document.activeElement,nodes['compare-button']));
+ await chooseFile('open-file',file(selectionPrimary,'selection-after-empty.tape'));
+ await chooseFile('compare-file',file(selectionComparison,'selection-after-empty-extension.tape'));
+ nodes['jump-divergence'].click();nodes['clear-compare'].click();expectSelection(0);
+ // Restoring a visible or off-page primary selection preserves a filtered second
+ // page and its focused row, including both search and the Errors only filter.
+ const selectionPageRows=makeRows(Array.from({length:752},(_,index)=>({
+  name:(index%3===2?'skip.':'keep.')+index,
+  status:index%2?'OK':'ERROR',output:index%2?'{}':'java.io.IOException'
+ })));
+ const selectionPagePrimary=normalTape(selectionPageRows.slice(0,751));
+ for(const operation of ['clear','replace'])for(const saved of [0,750]){
+  await chooseFile('open-file',file(selectionPagePrimary,'selection-pages-primary.tape'));
+  if(saved===750){
+   filter('keep.750');callAt(750).click();
+  }
+  await chooseFile('compare-file',file(normalTape(selectionPageRows),'selection-pages-extension.tape'));
+  nodes['jump-divergence'].click();
+  filter('keep.');nodes['errors-only'].checked=true;nodes['errors-only'].fire('change');
+  nodes['next-page'].click();
+  check(()=>assert.equal(nodes['visible-count'].textContent,'251–251 of 251 matching calls'));
+  const focused=callAt(750);focused.focus();expectUnchanged=unchangedTimeline();
+  if(operation==='clear')nodes['clear-compare'].click();
+  else await chooseFile('compare-file',file(selectionPagePrimary,'selection-pages-equal.tape'));
+  expectSelection(saved);expectUnchanged();
+  check(()=>assert.equal(document.activeElement,focused));
+  check(()=>assert.match(nodes.inspector.textContent,new RegExp('keep\\.'+saved+'(?![0-9])')));
+  check(()=>assert.equal(callAt(750).attributes['aria-pressed'],String(saved===750)));
+  // Paging back reveals an off-page bookmark with the right pressed marker.
+  if(saved===0){
+   nodes['previous-page'].click();
+   check(()=>assert.equal(callAt(0).attributes['aria-pressed'],'true'));
+  }
+ }
  // Search uses once-decoded JSON characters as well as original canonical text.
  // These ordinary files exercise the public filter; no helper or state is replaced.
  const unicodeCases=[
@@ -546,5 +689,5 @@ nodes.timeline.replaceChildren=function(...children){
  check(()=>assert.equal(nodes['skip-pages'].hidden,false));
  skipTo('skip-pages',nodes['next-page']);
  skipDetails();
- console.log('PASS: '+checks+' DOM-model interaction, once-decoded Unicode payload search, bounded pagination through 50,000 valid calls, native skip routes and focus/selection continuity, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, notice ownership, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
+ console.log('PASS: '+checks+' DOM-model interaction, once-decoded Unicode payload search, bounded pagination through 50,000 valid calls, native skip routes and focus/selection continuity, primary-selection restoration after comparison-only inspection, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, notice ownership, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
 })().catch(e=>{console.error(e);process.exit(1)});

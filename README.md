@@ -207,11 +207,13 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 41 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/12/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 303 parser/canonicalization/search checks and 1,197 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38070131969) passed 273 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- Viewer: 303 parser/canonicalization/search checks and 1,534 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38070131969) passed 273 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
 
 - Unicode/emoji payload search alongside canonical text, with single-decoded literal-escape semantics and unchanged exact-value comparisons
+
+- Remember the last primary call while inspecting comparison-only calls; restore it when clearing or replacing that comparison removes the inspected call
 
 - Comparison reset and successful primary replacement discard obsolete comparison alerts while preserving unrelated primary/drop failures
 
@@ -259,7 +261,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
 2. Build on the numeric-domain and retry examples with multiple independently authored application scenarios for explicit manifests and replay fixtures before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
-3. Review Unicode search, direct keyboard skip controls, file-load feedback and bounded-page navigation with assistive technologies and physical devices; engine emulation does not establish native Safari/iOS or Android compatibility.
+3. Review Unicode search, direct keyboard skip controls, file-load feedback, restored inspection selection and bounded-page navigation with assistive technologies and physical devices; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.
 

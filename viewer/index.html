@@ -63,7 +63,7 @@
 'use strict';
 // Intentionally dependency-free: only File/Blob reads and DOM rendering, never network or storage.
 const $ = id => document.getElementById(id);
-const state = { tape: null, comparison: null, selected: 0, pageStart: 0, difference: null, openVersion: 0, compareVersion: 0, noticeScope: null };
+const state = { tape: null, comparison: null, selected: 0, primarySelected: null, pageStart: 0, difference: null, openVersion: 0, compareVersion: 0, noticeScope: null };
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_CALLS = 50000;
 const PAGE_SIZE = 250;
@@ -477,12 +477,20 @@ function changePage(direction) {
 }
 function selectCall(position) {
   state.selected = position;
+  if (state.tape && state.tape.calls[position]) state.primarySelected = position;
   for (const button of $('timeline').querySelectorAll('button[data-position]')) {
     const selected = Number(button.dataset.position) === position;
     button.classList.toggle('selected', selected);
     button.setAttribute('aria-pressed', String(selected));
   }
   renderInspector();
+}
+function reconcileSelection() {
+  // Comparison-only inspection is temporary. Keep it while the replacement has
+  // that call; otherwise restore the last primary selection without repaging.
+  const primary = state.tape && state.tape.calls[state.selected];
+  const comparison = state.comparison && state.comparison.calls[state.selected];
+  selectCall(primary || comparison ? state.selected : state.primarySelected ?? 0);
 }
 function prettyJson(text) {
   // Indent the original text rather than JSON.stringify(JSON.parse(...)), which
@@ -565,6 +573,7 @@ function appendComparedCall(target, call) {
 }
 function loadPrimary(tape) {
   state.tape = tape; state.comparison = null; state.selected = 0; state.pageStart = 0;
+  state.primarySelected = tape.calls.length ? 0 : null;
   state.compareVersion++;
   if (state.noticeScope === 'comparison') clearError();
   $('search').value = ''; $('errors-only').checked = false;
@@ -588,7 +597,7 @@ async function readFile(file, compare) {
     if (!current()) return;
     if (compare) {
       state.comparison = tape;
-      renderComparison(); renderInspector();
+      renderComparison(); reconcileSelection();
       announce($('compare-title').textContent + '. ' + $('compare-context').textContent + ' ' + $('compare-policy-warning').textContent);
     } else loadPrimary(tape);
   } catch (error) { if (current()) showError('Could not open ' + file.name + '\n' + error.message, compare ? 'comparison' : 'primary'); }
@@ -628,16 +637,16 @@ $('clear-compare').addEventListener('click', () => {
   const restoreFocus = document.activeElement === $('clear-compare');
   state.compareVersion++; state.comparison = null;
   if (state.noticeScope === 'comparison') clearError();
-  renderComparison(); renderInspector(); announce('Comparison cleared.');
+  renderComparison(); reconcileSelection(); announce('Comparison cleared.');
   if (restoreFocus) $('compare-button').focus();
 });
 $('load-example').addEventListener('click', () => { state.openVersion++; clearError(); loadPrimary(parseTape(exampleTape(), 'example · weather-retry.tape')); });
 $('jump-divergence').addEventListener('click', () => {
   if (!state.difference) return;
   $('search').value = ''; $('errors-only').checked = false;
-  state.selected = state.difference.position;
-  state.pageStart = Math.floor(state.selected / PAGE_SIZE) * PAGE_SIZE;
-  renderTimeline(); renderInspector();
+  state.pageStart = Math.floor(state.difference.position / PAGE_SIZE) * PAGE_SIZE;
+  selectCall(state.difference.position);
+  renderTimeline();
   if (!focusTimelineCall(state.selected)) { $('inspector').tabIndex = -1; $('inspector').focus(); }
 });
 document.addEventListener('keydown', event => {
