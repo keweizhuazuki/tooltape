@@ -68,7 +68,7 @@ jobs:
           ./build.sh
           cmp target/tooltape.jar target/dist/tooltape-0.2.0.jar
           java -jar target/dist/tooltape-0.2.0.jar --version
-          java -jar target/dist/tooltape-0.2.0.jar validate fixtures/weather-retry-v2.tape
+          java -jar target/dist/tooltape-0.2.0.jar validate --json --require-v2 fixtures/weather-retry-v2.tape
           cd target/dist
           sha256sum tooltape-0.2.0.jar > SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

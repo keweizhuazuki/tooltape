@@ -16,16 +16,19 @@ final class CliReport {
     String command =
         args.length > 0 && ("validate".equals(args[0]) || "diff".equals(args[0])) ? args[0] : null;
     Map<String, Object> report = base(command);
+    boolean requireV2 = args.length > 2 && "--require-v2".equals(args[2]);
+    int firstFile = requireV2 ? 3 : 2;
     try {
       if (command == null
-          || args.length != (command.equals("validate") ? 3 : 4)
+          || args.length != firstFile + (command.equals("validate") ? 1 : 2)
           || !"--json".equals(args[1])
-          || List.of(args).subList(2, args.length).contains("--json")) {
+          || List.of(args).subList(firstFile, args.length).stream()
+              .anyMatch(arg -> "--json".equals(arg) || "--require-v2".equals(arg))) {
         error(report, "INVALID_ARGUMENTS", "Invalid command arguments.");
       } else if (command.equals("validate")) {
-        validate(report, read(args[2]));
+        validate(report, read(args[firstFile]), requireV2);
       } else {
-        diff(report, read(args[2]), read(args[3]));
+        diff(report, read(args[firstFile]), read(args[firstFile + 1]), requireV2);
       }
     } catch (InvalidPathException e) {
       error(report, "INVALID_ARGUMENTS", "Invalid command arguments.");
@@ -61,18 +64,21 @@ final class CliReport {
     return summary;
   }
 
-  private static void validate(Map<String, Object> report, Tape tape) {
+  private static void validate(Map<String, Object> report, Tape tape, boolean requireV2) {
     report.put("summary", summary(tape));
     report.put("warnings", tape.version() == 1 ? List.of("LEGACY_UNVERIFIED") : List.of());
     if (tape.version() == 2 && !tape.complete()) {
       error(report, "INCOMPLETE_TAPE", "Tape has no verified completion marker.");
+    } else if (requireV2 && tape.version() == 1) {
+      error(report, "LEGACY_TAPE", "Legacy tape rejected by --require-v2.");
     } else {
       report.put("outcome", "valid");
       report.put("exitCode", 0);
     }
   }
 
-  private static void diff(Map<String, Object> report, Tape expected, Tape actual) {
+  private static void diff(
+      Map<String, Object> report, Tape expected, Tape actual, boolean requireV2) {
     report.put("expected", summary(expected));
     report.put("actual", summary(actual));
     Map<String, Object> divergence = firstDivergence(expected, actual);
@@ -87,6 +93,9 @@ final class CliReport {
     } else if (!legacy && !expected.metadata().policyId().equals(actual.metadata().policyId())) {
       report.put("compatibility", "policy-mismatch");
       error(report, "POLICY_MISMATCH", "Tapes use different capture policies.");
+    } else if (requireV2 && legacy) {
+      report.put("compatibility", "unverified");
+      error(report, "LEGACY_TAPE", "Legacy tape rejected by --require-v2.");
     } else {
       report.put("compatibility", legacy ? "unverified" : "verified");
       report.put("outcome", divergence == null ? "match" : "divergence");
