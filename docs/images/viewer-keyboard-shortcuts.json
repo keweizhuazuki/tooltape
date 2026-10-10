@@ -1,0 +1,43 @@
+{
+  "screenshot": "viewer-keyboard-shortcuts.png",
+  "screenshotSha256": "77a4e38bd8a63c36d785bb385962636d437eec44468afab2680f6109875bd95f",
+  "kind": "actual chromium rendering, no image compositing",
+  "viewer": "viewer/index.html",
+  "viewerSha256": "b76ffda0cb1ef7b1f2089fa4a8f337d0e52404ffe33206b60fdf85b2192fd318",
+  "fixture": "Deterministic synthetic 501-call v1 tape; middle 250-call page, visible keyboard shortcuts, selected off-page call 500 retained in details.",
+  "sourceFixture": "viewer/browser-tests/artifacts/screenshots/desktop-chromium/synthetic-501-keyboard.tape",
+  "sourceFixtureSha256": "27ca9830ed3f2266564c248f553c4b9f2363e24beff378188b304e5034a0454e",
+  "fixtureEvidence": {
+    "kind": "deterministic synthetic TOOLTAPE v1, public file-input loading",
+    "generator": "viewer/browser-tests/viewer.spec.cjs",
+    "callCount": 501,
+    "primary": {
+      "name": "synthetic-501-keyboard.tape",
+      "bytes": 14310,
+      "sha256": "27ca9830ed3f2266564c248f553c4b9f2363e24beff378188b304e5034a0454e"
+    },
+    "displayedMatchingRange": [
+      251,
+      500
+    ],
+    "renderedCallCards": 250,
+    "selectedPosition": 500,
+    "selectedCallIsOffPage": true,
+    "pageSizeLimit": 250,
+    "captureNote": "The shared capture helper blurs focus; focus-visible and outline assertions run separately."
+  },
+  "commit": "31cf049ee0ccb5f14969f3d75ce3084bd3131f9e",
+  "workflowRun": "38068578529",
+  "playwright": "1.64.0",
+  "browserName": "chromium",
+  "browser": "156.0.8078.4",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "isMobile": false,
+  "hasTouch": false,
+  "deviceScaleFactor": 1,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"
+}
