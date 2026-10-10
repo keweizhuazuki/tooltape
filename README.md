@@ -193,7 +193,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 Exit codes: `0` valid/equal, `1` first semantic difference, `2` malformed file, I/O or usage error. Timing and metadata are shown but ignored in event comparisons. Validate first; a semantic diff does not establish completeness. Input/output differences include a JSON pointer such as `/city`.
 
-Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.tape`, filter failures, inspect arguments/results, or load a second tape to find the first difference. The timeline keeps at most 250 calls on a page, including a jump to the last divergence in a 50,000-call recording; previous/next navigation preserves the inspector selection. The viewer uses local File APIs and blocks network connections with CSP. CI exercises Chromium, Firefox and WebKit on Ubuntu, including 390px Chromium/WebKit mobile emulation. Linux WebKit is not branded Safari or a physical iOS device; native OS file-picker dialogs are not validated and no mobile app is claimed.
+Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.tape`, filter failures, inspect arguments/results, or load a second tape to find the first difference. The timeline keeps at most 250 calls on a page, including a jump to the last divergence in a 50,000-call recording; previous/next navigation preserves the inspector selection. Search accepts Unicode characters and emoji from JSON strings while keeping canonical escape searches; [matching rules](viewer/README.md#unicode-and-escaped-text-search) explain literal escapes and case behavior. The viewer uses local File APIs and blocks network connections with CSP. CI exercises Chromium, Firefox and WebKit on Ubuntu, including 390px Chromium/WebKit mobile emulation. Linux WebKit is not branded Safari or a physical iOS device; native OS file-picker dialogs are not validated and no mobile app is claimed.
 
 ## Where it fits
 
@@ -207,9 +207,11 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 41 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/12/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 232 parser/canonicalization checks and 334 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120) passed 178 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- Viewer: 303 parser/canonicalization/search checks and 544 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38067175946) passed 188 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
+
+- Unicode/emoji payload search alongside canonical text, with single-decoded literal-escape semantics and unchanged exact-value comparisons
 
 - Bounded timeline pages for large valid recordings, with late-divergence navigation, truthful ranges and preserved keyboard focus/inspection
 
@@ -253,7 +255,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
 2. Build on the numeric-domain and retry examples with multiple independently authored application scenarios for explicit manifests and replay fixtures before adding discovery or automatic baseline management. Evaluate paired-comparison inventories after demonstrating multiple independently generated regression scenarios; keep candidate recording and baseline updates explicit.
-3. Review the bounded-page navigation with assistive technologies and physical devices; engine emulation does not establish native Safari/iOS or Android compatibility.
+3. Review Unicode search and bounded-page navigation with assistive technologies and physical devices; engine emulation does not establish native Safari/iOS or Android compatibility.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.
 

@@ -380,6 +380,39 @@ function renderStats() {
   $('filename').title = tape.name;
   $('timeline-count').textContent = tape.calls.length + (tape.calls.length === 1 ? ' CALL' : ' CALLS');
 }
+function decodedJsonSearchText(text) {
+  // This is transient search text, not JSON for display or comparison. Only
+  // string tokens are parsed, so numeric text stays exact. Decoding once cannot
+  // turn a literal backslash-u sequence into Unicode, and the result is no
+  // longer than its already-budgeted canonical source (in UTF-16 units).
+  if (!text.includes('\\')) return text;
+  const chunks = [];
+  let copyStart = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '"') continue;
+    const start = i++;
+    let hasEscape = false;
+    while (i < text.length) {
+      if (text[i] === '\\') { hasEscape = true; i += 2; }
+      else if (text[i] === '"') break;
+      else i++;
+    }
+    if (hasEscape) {
+      chunks.push(text.slice(copyStart, start + 1), JSON.parse(text.slice(start, i + 1)));
+      copyStart = i; // Preserve the closing quote and all non-string text.
+    }
+  }
+  chunks.push(text.slice(copyStart));
+  return chunks.join('');
+}
+function callMatchesQuery(call, query) {
+  // The caller folds the query with toLowerCase, just as both views are folded
+  // here. Retain canonical-text searches, including their escape spellings.
+  if (!query || (call.name + '\n' + call.input + '\n' + call.output).toLowerCase().includes(query)) return true;
+  if (!call.input.includes('\\') && (call.status !== 'OK' || !call.output.includes('\\'))) return false;
+  return (call.name + '\n' + decodedJsonSearchText(call.input) + '\n'
+    + (call.status === 'OK' ? decodedJsonSearchText(call.output) : call.output)).toLowerCase().includes(query);
+}
 function renderTimeline() {
   const tape = state.tape;
   if (!tape) return;
@@ -389,7 +422,7 @@ function renderTimeline() {
   let maxNanos = 1n;
   tape.calls.forEach((call, position) => {
     if (call.nanos > maxNanos) maxNanos = call.nanos;
-    if ((!onlyErrors || call.status === 'ERROR') && (!query || (call.name + '\n' + call.input + '\n' + call.output).toLowerCase().includes(query))) matches.push({ call, position });
+    if ((!onlyErrors || call.status === 'ERROR') && callMatchesQuery(call, query)) matches.push({ call, position });
   });
   // Only the current page enters the DOM, even when a jump selects the last call.
   const lastPageStart = Math.floor(Math.max(0, matches.length - 1) / PAGE_SIZE) * PAGE_SIZE;

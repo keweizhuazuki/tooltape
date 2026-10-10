@@ -115,8 +115,102 @@ nodes.timeline.replaceChildren=function(...children){
  const callAt=position=>nodes.timeline.querySelector('[data-position="'+position+'"]');
  const escape=()=>document.fire('keydown',{key:'Escape'});
  const filter=query=>{nodes.search.value=query;nodes.search.fire('input');};
- const normalRows=Array.from({length:501},(_,index)=>[index,'1',ctx.encode((index<499?'step.':'tail.')+index),ctx.encode('{}'),'OK',ctx.encode('{}')].join('\t'));
  const normalTape=rows=>'TOOLTAPE\t1\n'+(rows.length?rows.join('\n')+'\n':'');
+ const makeRows=rows=>rows.map((row,index)=>[index,'1',ctx.encode(row.name||'test.run'),ctx.encode(row.input||'{}'),row.status||'OK',ctx.encode(row.output||'{}')].join('\t'));
+ // Search uses once-decoded JSON characters as well as original canonical text.
+ // These ordinary files exercise the public filter; no helper or state is replaced.
+ const unicodeCases=[
+  {name:'unicode.bmp',input:JSON.stringify({'城市':'杭州'}),output:JSON.stringify({answer:'CAFÉ'})},
+  {name:'unicode.emoji',input:JSON.stringify({route:'🚀 👩‍💻'}),output:JSON.stringify({'🧭':'🌍'})},
+  {name:'unicode.literal',input:JSON.stringify({literal:String.raw`\ud83d\ude80`})},
+  {name:'unicode.escaped',input:String.raw`{"message":"\uD83D\uDE80"}`,output:String.raw`{"city":"\u6771\u4eac"}`},
+  {name:'unicode.case',input:JSON.stringify({word:'ÉCOLE',letter:'𐐀'}),output:JSON.stringify({word:'Straße'})},
+  {name:'unicode.composed',input:JSON.stringify({value:'café'})},
+  {name:'unicode.decomposed',input:JSON.stringify({value:'cafe\u0301'})},
+  {name:'unicode.numbers',input:'{"exact":9223372036854775807,"marker":"🚀"}',output:'{"exact":9223372036854775806}'},
+  {name:'unicode.key',input:JSON.stringify({'🔍':'value'})}
+ ];
+ const unicodeTape=normalTape(makeRows(unicodeCases));
+ await ctx.readFile(file(unicodeTape,'unicode-search.tape'),false);
+ check(()=>assert.equal(nodes.notice.hidden,true));
+ check(()=>assert.equal(calls().length,9));
+ const canonicalBefore=run('JSON.stringify(state.tape.calls,(_,v)=>typeof v==="bigint"?v.toString():v)');
+ for(const [query,positions] of [
+  ['城市',[0]],['杭州',[0]],['東京',[3]],['🚀',[1,3,7]],['👩‍💻',[1]],['🧭',[1]],['🌍',[1]],['🔍',[8]],
+  [String.raw`"route":"\uD83D\uDE80`,[1]],
+  [String.raw`"literal":"\\ud83d\\ude80"`,[2]],
+  ['école',[4]],['𐐨',[4]],['straße',[4]],['STRASSE',[]],
+  ['café',[0,5]],['cafe\u0301',[6]],
+  ['9223372036854775807',[7]],['9223372036854775806',[7]],
+  ['9223372036854775807,"marker":"🚀"',[7]],['9223372036854776000',[]]
+ ]) {
+  filter(query);
+  check(()=>assert.deepEqual(calls().map(button=>Number(button.dataset.position)),positions,'Unicode search: '+JSON.stringify(query)));
+  check(()=>assert.equal(nodes['visible-count'].textContent,(positions.length?'1–'+positions.length:'0')+' of '+positions.length+' matching calls'));
+ }
+ filter('🚀');callAt(1).click();
+ check(()=>assert.ok(nodes.inspector.textContent.includes(String.raw`\ud83d\ude80`)));
+ check(()=>assert.ok(!nodes.inspector.textContent.includes('🚀')));
+ check(()=>assert.equal(run('JSON.stringify(state.tape.calls,(_,v)=>typeof v==="bigint"?v.toString():v)'),canonicalBefore));
+ const equivalentUnicode=unicodeCases.map((row,index)=>index===1?{...row,input:String.raw`{"route":"\ud83d\ude80 \ud83d\udc69\u200d\ud83d\udcbb"}`}:row);
+ await ctx.readFile(file(normalTape(makeRows(equivalentUnicode)),'unicode-equivalent.tape'),true);
+ check(()=>assert.match(nodes['compare-title'].textContent,/all 9 calls match/));
+ nodes['clear-compare'].click();
+ // 501 literal-emoji matches and 251 matching errors cross the page boundary.
+ // Nonmatching calls contain literal backslash-u text, so double decoding would
+ // also corrupt the asserted totals and page positions throughout this flow.
+ const unicodeMany=Array.from({length:751},(_,index)=>({
+  name:'unicode.step.'+index,
+  input:JSON.stringify({message:index%3===2?String.raw`\ud83d\ude80`:'杭州 🚀 👩‍💻',sequence:index}),
+  status:index%3===1?'OK':'ERROR',output:index%3===1?'{}':'java.io.IOException'
+ }));
+ await ctx.readFile(file(normalTape(makeRows(unicodeMany)),'unicode-pages.tape'),false);
+ const unicodePage=(range,first,last,count)=>{
+  check(()=>assert.equal(nodes['visible-count'].textContent,range));
+  check(()=>assert.equal(calls().length,count));
+  if(count){check(()=>assert.equal(calls()[0],callAt(first)));check(()=>assert.equal(calls()[count-1],callAt(last)));}
+ };
+ filter('🚀');unicodePage('1–250 of 501 matching calls',0,373,250);
+ nodes['next-page'].click();unicodePage('251–500 of 501 matching calls',375,748,250);
+ check(()=>assert.equal(document.activeElement,callAt(375)));
+ check(()=>assert.match(nodes.inspector.textContent,/unicode\.step\.0/));
+ nodes['next-page'].click();unicodePage('501–501 of 501 matching calls',750,750,1);
+ check(()=>assert.equal(document.activeElement,callAt(750)));
+ check(()=>assert.equal(callAt(750).attributes['aria-pressed'],'false'));
+ callAt(750).click();
+ nodes['previous-page'].click();unicodePage('251–500 of 501 matching calls',375,748,250);
+ check(()=>assert.equal(document.activeElement,callAt(375)));
+ check(()=>assert.match(nodes.inspector.textContent,/unicode\.step\.750/));
+ check(()=>assert.ok(calls().every(button=>button.attributes['aria-pressed']==='false')));
+ filter('👩‍💻');unicodePage('1–250 of 501 matching calls',0,373,250);
+ nodes['errors-only'].checked=true;nodes['errors-only'].fire('change');
+ unicodePage('1–250 of 251 matching calls',0,747,250);
+ nodes['next-page'].click();unicodePage('251–251 of 251 matching calls',750,750,1);
+ check(()=>assert.equal(document.activeElement,callAt(750)));
+ check(()=>assert.equal(callAt(750).attributes['aria-pressed'],'true'));
+ nodes['errors-only'].checked=false;nodes['errors-only'].fire('change');
+ unicodePage('1–250 of 501 matching calls',0,373,250);
+ nodes['next-page'].click();callAt(748).focus();escape();
+ unicodePage('501–750 of 751 matching calls',500,749,250);
+ check(()=>assert.equal(document.activeElement,callAt(748)));
+ check(()=>assert.match(nodes.inspector.textContent,/unicode\.step\.750/));
+ check(()=>assert.ok(calls().every(button=>button.attributes['aria-pressed']==='false')));
+ nodes['next-page'].click();unicodePage('751–751 of 751 matching calls',750,750,1);
+ check(()=>assert.equal(document.activeElement,callAt(750)));
+ check(()=>assert.equal(callAt(750).attributes['aria-pressed'],'true'));
+ for(const control of ['search','errors-only']) {
+  filter('🚀');nodes['errors-only'].checked=true;nodes['errors-only'].fire('change');
+  unicodePage('1–250 of 251 matching calls',0,747,250);
+  if(control==='search'){filter('no-unicode-match');unicodePage('0 of 0 matching calls',0,0,0);}
+  nodes[control].focus();escape();
+  unicodePage('751–751 of 751 matching calls',750,750,1);
+  check(()=>assert.equal(nodes.search.value,''));
+  check(()=>assert.equal(nodes['errors-only'].checked,false));
+  check(()=>assert.equal(document.activeElement,nodes[control]));
+  check(()=>assert.equal(callAt(750).attributes['aria-pressed'],'true'));
+  check(()=>assert.match(nodes.inspector.textContent,/unicode\.step\.750/));
+ }
+ const normalRows=Array.from({length:501},(_,index)=>[index,'1',ctx.encode((index<499?'step.':'tail.')+index),ctx.encode('{}'),'OK',ctx.encode('{}')].join('\t'));
  for(const size of [0,1,250,251,500,501]) {
   await ctx.readFile(file(normalTape(normalRows.slice(0,size)),'pages-'+size+'.tape'),false);
   check(()=>assert.equal(calls().length,Math.min(250,size)));
@@ -249,5 +343,5 @@ nodes.timeline.replaceChildren=function(...children){
  check(()=>assert.equal(calls().length,0));
  check(()=>assert.equal(document.activeElement,nodes.inspector));
  check(()=>assert.equal(nodes['visible-count'].textContent,'0 of 0 matching calls'));
- console.log('PASS: '+checks+' DOM-model interaction, bounded pagination through 50,000 valid calls, focus/selection continuity, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
+ console.log('PASS: '+checks+' DOM-model interaction, once-decoded Unicode payload search, bounded pagination through 50,000 valid calls, focus/selection continuity, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
 })().catch(e=>{console.error(e);process.exit(1)});
