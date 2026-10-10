@@ -1,5 +1,7 @@
 # Actual browser checks and screenshots
 
+English | [简体中文](README.zh-CN.md)
+
 These development-only checks open `viewer/index.html` directly through `file://` in real Chromium. They do not start a web server, tunnel, deployment, or external service. The viewer still needs no runtime dependencies. Test contexts are offline, and each test additionally rejects unexpected non-file requests and uncaught JavaScript errors.
 
 ## Reproduce

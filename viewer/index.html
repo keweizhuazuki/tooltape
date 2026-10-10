@@ -25,7 +25,7 @@
   </header>
   <main>
     <section class="hero" aria-labelledby="page-title">
-      <div><div class="eyebrow">A little clarity for your agents</div><h1 id="page-title">Every call. <span>Nothing lost.</span></h1><p class="intro">Inspect a recorded run. Find the failure. See exactly where two runs drift.</p></div>
+      <div><div class="eyebrow">A little clarity for your agents</div><h1 id="page-title">Your tools. <span>In context.</span></h1><p class="intro">Inspect a recorded run. Find the failure. See exactly where two runs drift.</p></div>
       <div class="hero-actions"><button class="btn" id="compare-button" disabled><span class="plus" aria-hidden="true">↔</span>Compare tape</button><button class="btn btn-primary" id="open-button"><span class="plus" aria-hidden="true">+</span>Open tape</button></div>
     </section>
     <input class="file-input" type="file" id="open-file" accept=".tape,text/plain" aria-label="Open primary tape">
@@ -275,7 +275,7 @@ function renderRecording() {
     ? 'Missing END footer. This incomplete recording cannot be used for safe replay.'
     : tape.completeness === 'closed'
       ? 'END confirms the recording session closed with ' + tape.calls.length + ' calls. This does not prove business success.'
-      : 'Legacy v1 has no completion footer. Recording completeness is unknown; this is not a safe-replay recording.';
+      : 'Legacy v1 has no completion footer. Recording completeness is unknown; capture policy and session closure cannot be verified.';
 }
 function renderComparison() {
   const hasComparison = Boolean(state.tape && state.comparison);

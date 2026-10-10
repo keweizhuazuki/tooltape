@@ -68,6 +68,12 @@ const v2 = (body = '', meta = metadata, count = body ? String(body.split('\n').l
   'TOOLTAPE\t2\nMETA\t' + encode(meta) + '\n' + (body ? body + '\n' : '') + (count === null ? '' : 'END\t' + count + '\n');
 const exampleRows = example.split('\n').slice(1, -1).join('\n');
 const closed = parseTape(v2(exampleRows), 'closed');
+const recordedV2 = parseTape(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'weather-retry-v2.tape'), 'utf8'), 'recorded v2 fixture');
+check(() => assert.equal(recordedV2.schemaVersion, 2));
+check(() => assert.equal(recordedV2.completeness, 'closed'));
+check(() => assert.equal(recordedV2.metadata.source, 'retry-regression'));
+check(() => assert.match(recordedV2.metadata.policyId, /^sha256:[0-9a-f]{64}$/));
+check(() => assert.equal(firstDivergence(tape, recordedV2), null));
 check(() => assert.equal(tape.schemaVersion, 1));
 check(() => assert.equal(tape.completeness, 'legacy'));
 check(() => assert.equal(tape.metadata, null));
