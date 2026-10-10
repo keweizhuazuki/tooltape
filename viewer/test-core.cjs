@@ -7,7 +7,7 @@ const html=fs.readFileSync(path.join(__dirname, 'index.html'),'utf8');
 const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];new vm.Script(script);
 const context={TextDecoder,TextEncoder,atob,btoa,Uint8Array,console};vm.createContext(context);
 vm.runInContext(script.slice(0,script.indexOf("$('open-button').addEventListener")),context);
-const {parseTape,exampleTape,firstDivergence,prettyJson,durationText,encode,canonicalJson}=context;
+const {parseTape,exampleTape,firstDivergence,prettyJson,durationText,encode,canonicalJson,decodedJsonSearchText,callMatchesQuery}=context;
 let checks=0;const check=(fn)=>{fn();checks++};
 const example=exampleTape(); const tape=parseTape(example,'sample');
 const row=(name='weather.lookup',input='{}',status='OK',output='{}',index='0',duration='1')=>[index,duration,encode(name),encode(input),status,encode(output)].join('\t');
@@ -50,6 +50,81 @@ for(const [input,expected] of pairs)check(()=>assert.equal(canon('{"n":'+input+'
 check(()=>assert.equal(canon('{"z":1.0,"a":2}'),canon('{"a":2.000,"z":1}')));
 check(()=>assert.notEqual(canon('{"n":9223372036854775807}'),canon('{"n":9223372036854775808}')));
 check(()=>assert.equal(canon('{"n":"😀"}'),'{"n":"\\ud83d\\ude00"}'));
+// Search keeps canonical spellings while also matching decoded string characters.
+// These are ordinary valid synthetic payloads; the stored canonical data, exact
+// numbers, comparison, and display remain independent of the search projection.
+const searchCall = (input = '{}', output = '{}') => parseTape(wrap(row('search.synthetic', input, 'OK', output)), 'synthetic search').calls[0];
+const matches = (call, query) => callMatchesQuery(call, query.trim().toLowerCase());
+const unicodeSearch = searchCall(JSON.stringify({plain: '工具 CAFÉ', emoji: '😀', zwj: '👩‍💻', supplementary: '𐐀'}), JSON.stringify({'🔎': 'output 🧪'}));
+for (const query of ['', 'SEARCH.SYNTHETIC', '工具', 'CAFÉ', 'café', '😀', '👩‍💻', '💻', '𐐀', '𐐨', '🔎', '🧪', 'output 🧪', '\\ud83d\\ude00', '\\ud801\\udc00']) {
+  check(() => assert.equal(matches(unicodeSearch, query), true, query));
+}
+for (const query of ['😃', '👩‍🔬', 'absent']) check(() => assert.equal(matches(unicodeSearch, query), false, query));
+const literalEscapeSearch = searchCall(JSON.stringify({literal: String.raw`\ud83d\ude00`, text: String.raw`\u0041`, slash: '\\'}));
+for (const query of ['😀', '"text":"A"']) check(() => assert.equal(matches(literalEscapeSearch, query), false, query));
+for (const query of [String.raw`\ud83d\ude00`, String.raw`\\ud83d\\ude00`, String.raw`\u0041`]) {
+  check(() => assert.equal(matches(literalEscapeSearch, query), true, query));
+}
+const escapedSearch = searchCall(JSON.stringify({'key"😀': 'left"😀\\right', controls: 'left\b\f\n\r\t\u0000right', path: 'a/b'}));
+for (const query of ['key"😀', 'left"😀\\right', 'left\b\f\n\r\t\u0000right', 'a/b', String.raw`left\"\ud83d\ude00\\right`]) {
+  check(() => assert.equal(matches(escapedSearch, query), true, query));
+}
+const combiningSearch = searchCall(JSON.stringify({text: 'e\u0301', case: 'Straße İ'}));
+check(() => assert.equal(matches(combiningSearch, 'e\u0301'), true));
+check(() => assert.equal(matches(combiningSearch, 'é'), false));
+check(() => assert.equal(matches(combiningSearch, 'STRASSE'), false));
+check(() => assert.equal(matches(combiningSearch, 'i\u0307'), true));
+// Quotes/backslashes are scanned as JSON tokens, including odd/even backslash
+// runs and nested strings. Only the original string token is decoded, once.
+const searchStrings = ['plain 工具', '😀👩‍💻𐐀', String.raw`\ud83d\ude00`, String.raw`\\ud83d\\ude00`, '\\"😀', '\\\\"😀', '"},"n":123,"x":"', '\b\f\n\r\t\u0000', 'e\u0301', 'İ'];
+for (const value of searchStrings) {
+  const source = JSON.stringify({[value]: [value, {nested: value}], number: 42});
+  const canonical = canon(source);
+  // Use fixed keys for an exact projection assertion independent of key sorting.
+  const fixedSource = canon(JSON.stringify({a: [value, {nested: value}], number: 42}));
+  const fixedExpected = '{"a":["' + value + '",{"nested":"' + value + '"}],"number":42}';
+  check(() => assert.equal(decodedJsonSearchText(fixedSource), fixedExpected));
+  check(() => assert.ok(decodedJsonSearchText(canonical).includes('"' + value + '":')));
+  check(() => assert.ok(decodedJsonSearchText(canonical).length <= canonical.length));
+}
+check(() => assert.equal(decodedJsonSearchText('{"a":"slash\\/line\\nquote\\\"end","n":9007199254740993}'), '{"a":"slash/line\nquote"end","n":9007199254740993}'));
+const preciseSearch = searchCall('{"emoji":"😀","n":9007199254740993,"decimal":12345678901234567890.123456789}');
+for (const query of ['9007199254740993', '12345678901234567890.123456789', '😀","n":9007199254740993']) {
+  check(() => assert.equal(matches(preciseSearch, query), true, query));
+}
+check(() => assert.equal(matches(preciseSearch, '9007199254740992'), false));
+check(() => assert.equal(matches(preciseSearch, '😀","n":9007199254740992'), false));
+check(() => {
+  vm.runInContext('globalThis.searchParseTokens = []; globalThis.originalSearchParse = JSON.parse; JSON.parse = function(text) { searchParseTokens.push(text); if (text[0] !== "\\\"") throw new Error("Search parsed a non-string token"); return originalSearchParse(text); };', context);
+  try {
+    assert.equal(decodedJsonSearchText('{"plain":"工具","n":9007199254740993}'), '{"plain":"工具","n":9007199254740993}');
+    assert.equal(context.searchParseTokens.length, 0);
+    assert.ok(decodedJsonSearchText(preciseSearch.input).includes('"n":9007199254740993'));
+    assert.equal(context.searchParseTokens.length, 1);
+    assert.equal(context.searchParseTokens[0], '"\\ud83d\\ude00"');
+    context.searchParseTokens.length = 0;
+    assert.equal(matches(preciseSearch, '\\ud83d'), true);
+    assert.equal(context.searchParseTokens.length, 0); // Canonical match short-circuits decoding.
+  } finally {
+    vm.runInContext('JSON.parse = originalSearchParse; delete globalThis.originalSearchParse; delete globalThis.searchParseTokens;', context);
+  }
+});
+check(() => {
+  const payload = canon(JSON.stringify({text: '😀\\"\n'.repeat(10000)}));
+  const projection = decodedJsonSearchText(payload);
+  assert.equal(projection, '{"text":"' + '😀\\"\n'.repeat(10000) + '"}');
+  assert.ok(projection.length <= payload.length);
+});
+check(() => {
+  const before = JSON.stringify(preciseSearch, (_, value) => typeof value === 'bigint' ? value.toString() : value);
+  const display = prettyJson(preciseSearch.input);
+  for (const query of ['😀', '\\ud83d', 'not present']) matches(preciseSearch, query);
+  assert.equal(JSON.stringify(preciseSearch, (_, value) => typeof value === 'bigint' ? value.toString() : value), before);
+  assert.equal(prettyJson(preciseSearch.input), display);
+  assert.ok(display.includes('\\ud83d\\ude00'));
+  assert.equal(firstDivergence({calls: [preciseSearch]}, {calls: [searchCall(preciseSearch.input)]}), null);
+  assert.deepEqual(Object.keys(preciseSearch).sort(), ['index', 'input', 'name', 'nanos', 'output', 'status']);
+});
 check(()=>assert.throws(()=>canon('{"x":1,"x":2}'),/duplicate/));
 check(()=>assert.throws(()=>canon('{"x":1,"\\u0078":2}'),/duplicate/));
 check(()=>assert.throws(()=>canon('{"x":'+ '['.repeat(65)+'0'+']'.repeat(65)+'}'),/64 levels/));
@@ -202,4 +277,4 @@ check(() => assert.equal(parseTape(wrap(row('tool', '{}', 'ERROR', '工具'.repe
 for (const errorClass of ['a'.repeat(1025), 'a.'.repeat(512) + 'a', '工具'.repeat(513), '𐐀'.repeat(513)]) {
   check(() => assert.throws(() => parseTape(wrap(row('tool', '{}', 'ERROR', errorClass)), 'oversized error class'), /exception class/));
 }
-console.log('PASS: '+checks+' v1/v2 parser, closure/metadata, comparison, precision, formatting, fixture-parity, limits, and static privacy checks.');
+console.log('PASS: '+checks+' v1/v2 parser, closure/metadata, comparison, Unicode search, precision, formatting, fixture-parity, limits, and static privacy checks.');

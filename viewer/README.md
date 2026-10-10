@@ -15,6 +15,14 @@ Open [`index.html`](index.html) directly in a modern browser. There is no server
 
 Files are limited to 16 MiB and 50,000 calls. The timeline renders at most 250 matching cards per page. **Previous page** and **Next page** replace the visible page; the footer reports its one-based range and total matching count. Jumping to a late divergence opens its page without rendering preceding pages. Paging keeps the inspector selection, even when that selected call is on another page. Very large payload panels display the first 100,000 characters with a visible notice; search and comparison still use complete values. An invalid replacement file leaves the previous valid run intact. Opening a new primary tape clears the old comparison.
 
+## Unicode and escaped-text search
+
+Search accepts Unicode characters from JSON keys and string values, including emoji such as `😀`, even when the inspector shows canonical surrogate escapes. It also keeps the original canonical-text matching behavior, so JSON escape spellings and exact numeric text remain searchable. This is a substring filter, not a JSON-value equality query.
+
+String escapes are decoded **once** for the extra search view. A field containing the literal characters `\ud83d\ude00` does not become an emoji match. Searching that escape spelling can still match a canonical emoji representation or the literal text. Search uses JavaScript's locale-independent `toLowerCase()` with surrounding query whitespace trimmed, as before; it does not add Unicode normalization, accent removal, locale-specific matching or fuzzy matching. For example, composed `é` and `e` plus a combining accent remain different sequences.
+
+The decoded view is transient, no longer than its canonical source in UTF-16 units before lowercasing, and is not retained as a per-call search index. Existing 16 MiB / 50,000-call input limits still apply; this is not a browser heap-size or latency guarantee. Display, canonical serialization, exact numbers and comparison semantics are unchanged. Searching neither changes nor redacts recorded values.
+
 ## Keyboard controls
 
 - Tab reaches visible **Open tape** / **Compare tape** buttons, without stopping on the invisible file inputs. Enter or Space opens the normal browser file picker.
@@ -104,6 +112,6 @@ For real offline Chromium/Firefox/WebKit interactions, responsive-layout asserti
 
 ## Implementation and next verification
 
-Completed: bounded 250-call pages, late-divergence navigation and truthful ranges; improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
+Completed: Unicode/emoji search with single-decoded string matching and unchanged canonical comparison; bounded 250-call pages, late-divergence navigation and truthful ranges; improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
 
 Next verification: keep screenshots synchronized with viewer changes; add physical-device testing, native Safari/iOS coverage and an assistive-technology audit.

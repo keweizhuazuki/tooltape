@@ -469,6 +469,163 @@ test('built-in example, filters, selection, and Escape work in a real browser', 
   await expect(calls(page)).toHaveCount(2);
 });
 
+test('Unicode payload search decodes JSON strings once and preserves canonical text and exact numbers', async ({ page, browser }, testInfo) => {
+  const rows = [
+    { name: 'unicode.bmp', input: JSON.stringify({ '城市': '杭州' }), output: JSON.stringify({ answer: 'CAFÉ' }) },
+    { name: 'unicode.emoji', input: JSON.stringify({ route: '🚀 👩‍💻' }), output: JSON.stringify({ '🧭': '🌍' }) },
+    { name: 'unicode.literal', input: JSON.stringify({ literal: String.raw`\ud83d\ude80` }) },
+    { name: 'unicode.escaped', input: String.raw`{"message":"\uD83D\uDE80"}`, output: String.raw`{"city":"\u6771\u4eac"}` },
+    { name: 'unicode.case', input: JSON.stringify({ word: 'ÉCOLE', letter: '𐐀' }), output: JSON.stringify({ word: 'Straße' }) },
+    { name: 'unicode.composed', input: JSON.stringify({ value: 'café' }) },
+    { name: 'unicode.decomposed', input: JSON.stringify({ value: 'cafe\u0301' }) },
+    { name: 'unicode.numbers', input: '{"exact":9223372036854775807,"marker":"🚀"}', output: '{"exact":9223372036854775806}' },
+    { name: 'unicode.key', input: JSON.stringify({ '🔍': 'value' }) }
+  ];
+  // Ordinary UTF-8 file input, with no parser/state replacement or search helper calls.
+  await page.getByLabel('Open primary tape', { exact: true }).setInputFiles(file('unicode-search.tape', tape(rows)));
+  await expect(page.locator('#stat-calls')).toHaveText('9');
+  await expect(page.getByRole('alert')).toBeHidden();
+  const search = page.getByRole('searchbox');
+  for (const [query, positions] of [
+    ['城市', [0]], ['杭州', [0]], ['東京', [3]],
+    ['🚀', [1, 3, 7]], ['👩‍💻', [1]], ['🧭', [1]], ['🌍', [1]], ['🔍', [8]],
+    // The legacy escaped spelling is still searchable, including case folding.
+    [String.raw`"route":"\uD83D\uDE80`, [1]],
+    [String.raw`"literal":"\\ud83d\\ude80"`, [2]],
+    // JavaScript lowercase matching, without full case folding or normalization.
+    ['école', [4]], ['𐐨', [4]], ['straße', [4]], ['STRASSE', []],
+    ['café', [0, 5]], ['cafe\u0301', [6]],
+    ['9223372036854775807', [7]], ['9223372036854775806', [7]],
+    ['9223372036854775807,"marker":"🚀"', [7]], ['9223372036854776000', []]
+  ]) {
+    await search.fill(query);
+    await expect(calls(page), 'matching calls for ' + JSON.stringify(query)).toHaveCount(positions.length);
+    expect(await calls(page).evaluateAll(elements => elements.map(element => Number(element.dataset.position))),
+      'matching positions for ' + JSON.stringify(query)).toEqual(positions);
+    await expect(page.locator('#visible-count')).toHaveText(positions.length
+      ? `1–${positions.length} of ${positions.length} matching calls`
+      : '0 of 0 matching calls');
+  }
+  await search.fill('🚀');
+  await callAt(page, 1).focus();
+  await page.keyboard.press('Enter');
+  await expect(callAt(page, 1)).toHaveAttribute('aria-pressed', 'true');
+  const input = page.getByLabel('input', { exact: true });
+  // Search must not change the inspector into a decoded or reserialized payload.
+  await expect(input).toContainText(String.raw`\ud83d\ude80`);
+  await expect(input).not.toContainText('🚀');
+  await expect(page.getByLabel('output', { exact: true })).toContainText(String.raw`\ud83e\udded`);
+  if (testInfo.project.name === 'desktop-chromium') {
+    const directory = path.join(__dirname, 'artifacts/screenshots', testInfo.project.name);
+    await fs.mkdir(directory, { recursive: true });
+    const fixturePath = path.join(directory, 'unicode-search.tape');
+    await fs.writeFile(fixturePath, tape(rows));
+    await capture(page, browser, testInfo, 'viewer-unicode-search',
+      'Synthetic nine-call v1 tape; rocket query matches three original Unicode payloads while the selected inspector preserves canonical escaped JSON.',
+      fixturePath, { query: '🚀', matchingPositions: [1, 3, 7], selectedPosition: 1 });
+  }
+  await callAt(page, 7).click();
+  await expect(input).toContainText('9223372036854775807');
+  await expect(input).toContainText(String.raw`\ud83d\ude80`);
+  await expect(page.getByLabel('output', { exact: true })).toContainText('9223372036854775806');
+  const equivalent = rows.map((row, index) => index === 1 ? {
+    ...row, input: String.raw`{"route":"\ud83d\ude80 \ud83d\udc69\u200d\ud83d\udcbb"}`
+  } : row);
+  await page.getByLabel('Open comparison tape', { exact: true }).setInputFiles(file('unicode-equivalent.tape', tape(equivalent)));
+  await expect(page.locator('#compare-title')).toHaveText('Same recorded behavior · all 9 calls match');
+  await expect(page.locator('#jump-divergence')).toBeHidden();
+  await expect(input).toContainText('9223372036854775807');
+});
+
+test('Unicode search keeps bounded pages, selection, focus, Errors only, and Escape across 501 matches', async ({ page }) => {
+  // 501 actual emoji payloads, 250 literal-backslash traps, and 251 matching
+  // errors ensure both search and Errors only exercise more than one page.
+  const rows = Array.from({ length: 751 }, (_, index) => ({
+    name: 'unicode.step.' + index,
+    input: JSON.stringify({ message: index % 3 === 2 ? String.raw`\ud83d\ude80` : '杭州 🚀 👩‍💻', sequence: index }),
+    status: index % 3 === 1 ? 'OK' : 'ERROR',
+    output: index % 3 === 1 ? '{}' : 'java.io.IOException'
+  }));
+  await page.getByLabel('Open primary tape', { exact: true }).setInputFiles(file('unicode-pages.tape', tape(rows)));
+  await expect(page.locator('#stat-calls')).toHaveText('751');
+  await expect(page.getByRole('alert')).toBeHidden();
+  const search = page.getByRole('searchbox');
+  const errorsOnly = page.getByLabel('Errors only', { exact: true });
+  const inspectorName = page.locator('#inspector h2');
+  await search.fill('🚀');
+  await expectTimelinePage(page, 1, 250, 501, 0, 373);
+  await nextPage(page).focus();
+  await page.keyboard.press('Enter');
+  await expectTimelinePage(page, 251, 500, 501, 375, 748);
+  await expect(callAt(page, 375)).toBeFocused();
+  await expect(inspectorName).toHaveText('unicode.step.0');
+  await nextPage(page).focus();
+  await page.keyboard.press('Space');
+  await expectTimelinePage(page, 501, 501, 501, 750, 750);
+  await expect(callAt(page, 750)).toBeFocused();
+  await expect(callAt(page, 750)).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Enter');
+  await expect(callAt(page, 750)).toHaveAttribute('aria-pressed', 'true');
+  await expect(inspectorName).toHaveText('unicode.step.750');
+  await page.keyboard.press('Tab');
+  await expect(previousPage(page)).toBeFocused();
+  await page.keyboard.press('Space');
+  await expectTimelinePage(page, 251, 500, 501, 375, 748);
+  await expect(callAt(page, 375)).toBeFocused();
+  await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+  await expect(inspectorName).toHaveText('unicode.step.750');
+
+  await search.fill('👩‍💻');
+  await expectTimelinePage(page, 1, 250, 501, 0, 373);
+  await errorsOnly.check();
+  await expectTimelinePage(page, 1, 250, 251, 0, 747);
+  await nextPage(page).focus();
+  await page.keyboard.press('Enter');
+  await expectTimelinePage(page, 251, 251, 251, 750, 750);
+  await expect(callAt(page, 750)).toBeFocused();
+  await expect(callAt(page, 750)).toHaveAttribute('aria-pressed', 'true');
+  await errorsOnly.uncheck();
+  await expectTimelinePage(page, 1, 250, 501, 0, 373);
+  await expect(inspectorName).toHaveText('unicode.step.750');
+
+  await nextPage(page).click();
+  await callAt(page, 748).focus();
+  await page.keyboard.press('Escape');
+  await expect(search).toHaveValue('');
+  await expect(errorsOnly).not.toBeChecked();
+  await expectTimelinePage(page, 501, 750, 751);
+  await expect(callAt(page, 748)).toBeFocused();
+  await expect(callAt(page, 750)).toHaveCount(0);
+  await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+  await expect(inspectorName).toHaveText('unicode.step.750');
+  await nextPage(page).focus();
+  await page.keyboard.press('Space');
+  await expectTimelinePage(page, 751, 751, 751);
+  await expect(callAt(page, 750)).toBeFocused();
+  await expect(callAt(page, 750)).toHaveAttribute('aria-pressed', 'true');
+
+  for (const focusedControl of [search, errorsOnly]) {
+    await search.fill('🚀');
+    await errorsOnly.check();
+    await expectTimelinePage(page, 1, 250, 251, 0, 747);
+    if (focusedControl === search) {
+      await search.fill('no-unicode-match');
+      await expectTimelinePage(page, 0, 0, 0);
+      await expect(page.locator('#timeline')).toContainText('No calls match these filters.');
+    }
+    await focusedControl.focus();
+    await page.keyboard.press('Escape');
+    await expect(search).toHaveValue('');
+    await expect(errorsOnly).not.toBeChecked();
+    await expect(focusedControl).toBeFocused();
+    await expectTimelinePage(page, 751, 751, 751);
+    await expect(callAt(page, 750)).toHaveAttribute('aria-pressed', 'true');
+    await expect(inspectorName).toHaveText('unicode.step.750');
+  }
+  await expect(page.getByLabel('input', { exact: true })).toContainText(String.raw`\ud83d\ude80`);
+  await expect(page.getByLabel('input', { exact: true })).not.toContainText('🚀');
+});
+
 test('comparison ignores timing, finds drift, clears filters, and resets on a new primary', async ({ page }) => {
   await openFixture(page);
   const original = await fs.readFile(fixture, 'utf8');
