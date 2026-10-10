@@ -17,7 +17,7 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 ![ToolTape v2 会话时间线与已录制的工具异常](docs/images/viewer-session.png)
 
-图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454)已通过全部 25 项有效检查。
+图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38037778576)已通过全部 53 项有效检查。
 
 <details>
 <summary>查看首次差异比较与移动布局</summary>
@@ -157,7 +157,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 24 项 JUnit 测试通过；另有 62 个真实 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/4/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
-- 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38035619454)通过 25 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
+- 界面：232 项解析与规范化检查、72 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38037778576)通过 53 项桌面/移动 Chromium 检查，跳过 1 项重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
 

@@ -72,7 +72,7 @@ node viewer/test-interactions.cjs
 
 第一个脚本检查 v1/v2 解析、严格元数据校验、结束计数与位置、不完整或空会话、50,000 次调用边界、与实际示例的一致性、数字规范化、大整数精度、错误编码、比较逻辑和无网络/存储调用。第二个脚本使用简化的内存 DOM 模型检查完整性和来源展示、策略差异警告、文件读取、筛选、首次分歧、缺失调用、异常提示、被中断或过期的异步读取、大小限制和安全文本展示。
 
-这些检查不等同于真实浏览器渲染或无障碍测试。[真实浏览器验证说明](browser-tests/README.md) 提供离线 Chromium 交互、响应式布局与基准/差异/移动端截图的复现步骤。[浏览器 CI 工作流](../.github/workflows/browser.yml) 使用固定版本的开发依赖，直接从磁盘打开 HTML，并上传包含源文件和样例来源信息的真实截图。[真实 Chromium CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38033674969)已通过 25 项测试（跳过 1 项重复截图），实际桌面和移动截图也已检查；截图由链接的 GitHub Actions 运行生成。
+这些检查不等同于真实浏览器渲染或无障碍测试。[真实浏览器验证说明](browser-tests/README.md) 提供离线 Chromium 交互、响应式布局与基准/差异/移动端截图的复现步骤。[浏览器 CI 工作流](../.github/workflows/browser.yml) 使用固定版本的开发依赖，直接从磁盘打开 HTML，并上传包含源文件和样例来源信息的真实截图。[真实 Chromium CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38037778576)已通过 53 项测试（跳过 1 项重复截图），实际桌面和移动截图也已检查；截图由链接的 GitHub Actions 运行生成。
 
 ### 已完成与下一步验证
 
