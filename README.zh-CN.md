@@ -41,16 +41,18 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 ### 预构建 CLI（Java 17+）
 
-v0.2.0 预发布提供 JAR 和 SHA-256 校验文件；尚未发布到 Maven Central。
+CI 提供经过验证的 JAR 和 SHA-256 校验文件，尚未发布到 Maven Central。带版本标签的预发布若已提供，可在[发布列表](https://github.com/keweizhuazuki/tooltape/releases)中查看。
+
+当前经过验证的 v0.2 构建可从对应成功的 CI 下载：
 
 ```sh
-gh release download v0.2.0 --repo keweizhuazuki/tooltape --pattern tooltape-0.2.0.jar --pattern SHA256SUMS
+gh run download 38034258764 --repo keweizhuazuki/tooltape --name tooltape-dist-7d08b44df8d6c8a4cdc7835bfcee02e07a8258a9
 sha256sum -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
 ```
 
-macOS 使用 `shasum -a 256 -c SHA256SUMS`；Windows 将 `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` 与 SHA256SUMS 中的值比较，一致后再执行。[发布说明与下载](https://github.com/keweizhuazuki/tooltape/releases/tag/v0.2.0)。
+CI 产物保留 30 天，下载可能需要登录 GitHub CLI；下方源码构建方式长期有效。macOS 使用 `shasum -a 256 -c SHA256SUMS`；Windows 将 `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` 与 SHA256SUMS 中的值比较，一致后再运行。
 
 ### 从源码构建
 
@@ -152,7 +154,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 - 兼容旧 v1 数据，CLI 和查看器明确标记旧版及未完整关闭状态
 - 以 RFC 6901 JSON 指针定位首个输入输出差异
 - 通过 CI 运行真实 Chromium 桌面与移动模拟测试，并生成带来源信息的截图
-- 固定 JAR 时间戳，二次构建逐字节对比，预发布附带校验文件
+- 固定 JAR 时间戳，二次构建逐字节对比，CI 构建产物附带校验文件
 - 真实 Spring AI 项目的固定源码接入方式，不虚构 Maven Central 坐标
 
 ### v0.1 基础能力

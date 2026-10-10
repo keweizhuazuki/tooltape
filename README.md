@@ -45,16 +45,18 @@ The mobile image is browser emulation, not a physical-device claim. PNGs are dir
 
 ### Prebuilt CLI (Java 17+)
 
-The v0.2.0 prerelease includes a JAR and SHA-256 checksums; it is not published on Maven Central.
+CI produces a verified JAR and SHA-256 checksums. It is not published on Maven Central. Tagged prereleases, when available, are listed under [Releases](https://github.com/keweizhuazuki/tooltape/releases).
+
+The tested v0.2 build can currently be downloaded from its successful CI run:
 
 ```sh
-gh release download v0.2.0 --repo keweizhuazuki/tooltape --pattern tooltape-0.2.0.jar --pattern SHA256SUMS
+gh run download 38034258764 --repo keweizhuazuki/tooltape --name tooltape-dist-7d08b44df8d6c8a4cdc7835bfcee02e07a8258a9
 sha256sum -c SHA256SUMS              # Linux; macOS: shasum -a 256 -c SHA256SUMS
 java -jar tooltape-0.2.0.jar --version
 java -jar tooltape-0.2.0.jar inspect path/to/your.tape
 ```
 
-On Windows, compare `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` with the value in `SHA256SUMS` before running the JAR. [Release assets and notes](https://github.com/keweizhuazuki/tooltape/releases/tag/v0.2.0).
+CI artifacts have 30-day retention and may require GitHub CLI sign-in; source builds below remain available. On Windows, compare `(Get-FileHash tooltape-0.2.0.jar -Algorithm SHA256).Hash` with the value in `SHA256SUMS` before running the JAR.
 
 ### Build from source
 
@@ -155,7 +157,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 - Backward-compatible v1 reading, clear legacy/incomplete states in CLI and viewer
 - RFC 6901 JSON-pointer locations for the first differing input/output
 - Real desktop/mobile Chromium tests and screenshot provenance generated in CI
-- Deterministic JAR timestamps, rebuild byte-comparison and checksummed prerelease artifacts
+- Deterministic JAR timestamps, rebuild byte-comparison and checksummed CI distribution artifacts
 - Pinned-source integration route for the actual Spring AI project; no fake Maven Central coordinates
 
 ### v0.1 foundation
