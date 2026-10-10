@@ -1,0 +1,51 @@
+{
+  "reportVersion": 1,
+  "sourceCommit": "df29be715f435a248e40acb0a175a340f452ef23",
+  "workflowRun": "38038608729",
+  "viewerSha256": "0d9e9d86738f02b28b3c96e5ed88d2d3e015fb370986eb845d13bd162ef46bb8",
+  "browser": "156.0.8078.4",
+  "minimumRequired": 4.5,
+  "scope": "Sampled small text and states only; not a complete accessibility audit",
+  "projects": [
+    {
+      "project": "desktop-chromium",
+      "samples": 114,
+      "minimumRatio": 4.8947903629542875,
+      "worstSample": {
+        "label": "selected error row .event-summary",
+        "foreground": [
+          0.5294117647058824,
+          0.5803921568627451,
+          0.5607843137254902,
+          1
+        ],
+        "background": [
+          0.11372549019607843,
+          0.15294117647058825,
+          0.11764705882352941,
+          1
+        ]
+      }
+    },
+    {
+      "project": "mobile-chromium",
+      "samples": 113,
+      "minimumRatio": 4.8947903629542875,
+      "worstSample": {
+        "label": "selected error row .event-summary",
+        "foreground": [
+          0.5294117647058824,
+          0.5803921568627451,
+          0.5607843137254902,
+          1
+        ],
+        "background": [
+          0.11372549019607843,
+          0.15294117647058825,
+          0.11764705882352941,
+          1
+        ]
+      }
+    }
+  ]
+}

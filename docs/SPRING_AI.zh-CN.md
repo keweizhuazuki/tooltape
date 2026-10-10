@@ -2,13 +2,15 @@
 
 [English](SPRING_AI.md) | [简体中文](SPRING_AI.zh-CN.md)
 
-真实接入已在 [kewei-ai-agent PR #15](https://github.com/keweizhuazuki/kewei-ai-agent/pull/15) 合并，验证框架版本为 **Spring AI 2.0.0-M2**。这是应用内可选适配器，不是已发布的通用 Spring AI 模块，不能据此推断其他版本兼容。
+真实接入始于 [kewei-ai-agent PR #15](https://github.com/keweizhuazuki/kewei-ai-agent/pull/15)；[PR #18](https://github.com/keweizhuazuki/kewei-ai-agent/pull/18) 已接入加固核心并验证安全边界。验证框架版本为 **Spring AI 2.0.0-M2**。这是应用内可选适配器，不是已发布的通用 Spring AI 模块，不能据此推断其他版本兼容。
 
 ## 复现测试
 
 ```sh
 git clone --recurse-submodules https://github.com/keweizhuazuki/kewei-ai-agent.git
 cd kewei-ai-agent
+# 已验证的应用快照；测试当前 main 时可省略 checkout
+git checkout 23627a9ff0bd885f6e06db68cea7e05caf39a7cb
 git submodule update --init --recursive
 ./mvnw -Ptooltape clean "-Dtest=ToolTape*,ToolCallAgentTest,ToolRegistrationTest" test
 ./mvnw -Ptooltape -DskipTests package
@@ -16,11 +18,13 @@ git submodule update --init --recursive
 
 Windows 改用 `.\mvnw.cmd`，应用要求 Java 21。可选 profile 编译固定 Git 子模块 `vendor/tooltape`、适配器和测试源码；默认构建不依赖 ToolTape。不要改用未审查的浮动分支，也没有 Maven Central 制品坐标可直接下载。
 
-接入已通过 **22 项工具/适配器专项测试和打包**，应用默认后端另有 **90 项测试通过**。专项命令不是全量测试。
+接入已通过 **24 项工具/适配器专项测试和打包**，应用默认后端另有 **90 项测试通过**。专项命令不是全量测试。
+
+该应用快照固定 ToolTape `442ce89e73cb67fcc294021de739a6de8ccc6128`，[对应 main CI](https://github.com/keweizhuazuki/kewei-ai-agent/actions/runs/38038018090) 已通过。新增两项适配器回归验证伪装的凭据键被排除，以及超大允许字段输入在真实回调执行前被拒绝；这些测试在旧核心指针上会失败。
 
 ## 实际验证了什么？
 
-[`ToolTapeAgentReplayTest`](https://github.com/keweizhuazuki/kewei-ai-agent/blob/74a73add6da6243bbc431ebb190327312b3be81c/src/tooltape-test/java/com/kiwi/keweiaiagent/tooltape/ToolTapeAgentReplayTest.java) 使用本地假 ChatModel 执行 `think()`，随后进入真实 `ToolCallAgent.act()` 和 Spring AI 工具管理器。录制只执行一次合成工具，回放不再次调用真实回调。该回归不使用付费模型或外部真实工具。
+[`ToolTapeAgentReplayTest`](https://github.com/keweizhuazuki/kewei-ai-agent/blob/23627a9ff0bd885f6e06db68cea7e05caf39a7cb/src/tooltape-test/java/com/kiwi/keweiaiagent/tooltape/ToolTapeAgentReplayTest.java) 使用本地假 ChatModel 执行 `think()`，随后进入真实 `ToolCallAgent.act()` 和 Spring AI 工具管理器。录制只执行一次合成工具，回放不再次调用真实回调。该回归不使用付费模型或外部真实工具。
 
 适配器保留 ToolDefinition、ToolMetadata 与原始 JSON 参数。仅在录制时于内存中传递 ToolContext，不将其交给录制器；回放只保留定义和元数据，不保留或执行真实回调。
 

@@ -32,6 +32,7 @@ The committed lockfile pins the Playwright test runner and browser-install versi
 - Browser `File` / `DataTransfer` drop handling and rejection of multiple dropped files
 - Deferred file-read races and timeline pagination
 - Keyboard focus after pagination/filter reset/comparison dismissal, visible Tab stops, and Enter/Space file-chooser activation
+- Computed small-text contrast for sampled labels, placeholders and timeline states, including transparency/opacity composition
 - v2 session closure, incomplete recording warnings, provenance, and capture-policy drift
 - Desktop side-by-side and mobile stacked layout, with no horizontal page overflow
 

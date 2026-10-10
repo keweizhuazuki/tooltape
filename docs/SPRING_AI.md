@@ -2,14 +2,16 @@
 
 [English](SPRING_AI.md) | [简体中文](SPRING_AI.zh-CN.md)
 
-The actual integration is now merged in [kewei-ai-agent PR #15](https://github.com/keweizhuazuki/kewei-ai-agent/pull/15), verified against Spring AI **2.0.0-M2**. It is an **opt-in application adapter**, not a separately published general-purpose Spring AI module. Other framework versions are not implied to work.
+The original integration landed in [kewei-ai-agent PR #15](https://github.com/keweizhuazuki/kewei-ai-agent/pull/15); [PR #18](https://github.com/keweizhuazuki/kewei-ai-agent/pull/18) upgrades it to the hardened core and verifies its safety boundaries. The adapter is verified against Spring AI **2.0.0-M2**. It is an **opt-in application adapter**, not a separately published general-purpose Spring AI module. Other framework versions are not implied to work.
 
 ## Reproduce the integration tests
 
 ```sh
 git clone --recurse-submodules https://github.com/keweizhuazuki/kewei-ai-agent.git
 cd kewei-ai-agent
-# For an existing clone:
+# Exact verified application snapshot (omit checkout to test current main):
+git checkout 23627a9ff0bd885f6e06db68cea7e05caf39a7cb
+# Also required after changing the application revision:
 git submodule update --init --recursive
 ./mvnw -Ptooltape clean "-Dtest=ToolTape*,ToolCallAgentTest,ToolRegistrationTest" test
 ./mvnw -Ptooltape -DskipTests package
@@ -17,11 +19,13 @@ git submodule update --init --recursive
 
 On Windows, use `.\mvnw.cmd` for the same commands. Java 21 is required by the application. The profile adds the pinned `vendor/tooltape` sources and the app's adapter/test source roots; its default build has no ToolTape dependency. Do not replace the submodule pin with an unreviewed moving branch or invent Maven Central coordinates.
 
-The merged integration passed **22 focused tool/adapter tests with packaging**, plus the application's default **90-test backend suite**. These are separate checks; the focused invocation is not the whole app suite.
+The merged integration passed **24 focused tool/adapter tests with packaging**, plus the application's default **90-test backend suite**. These are separate checks; the focused invocation is not the whole app suite.
+
+The verified application snapshot pins ToolTape `442ce89e73cb67fcc294021de739a6de8ccc6128`. [Its main CI](https://github.com/keweizhuazuki/kewei-ai-agent/actions/runs/38038018090) passed. Two additional adapter regressions verify that disguised credential keys are omitted and oversized allowlisted input is rejected before any live callback; these tests failed against the previous core pin.
 
 ## What is actually exercised?
 
-[`ToolTapeAgentReplayTest`](https://github.com/keweizhuazuki/kewei-ai-agent/blob/74a73add6da6243bbc431ebb190327312b3be81c/src/tooltape-test/java/com/kiwi/keweiaiagent/tooltape/ToolTapeAgentReplayTest.java) runs `think()` with a local fake ChatModel and then the real `ToolCallAgent.act()` / Spring AI tool manager. Recording executes the synthetic tool once; replay returns the fixture without another live callback. No paid model or real external tool is used by this regression.
+[`ToolTapeAgentReplayTest`](https://github.com/keweizhuazuki/kewei-ai-agent/blob/23627a9ff0bd885f6e06db68cea7e05caf39a7cb/src/tooltape-test/java/com/kiwi/keweiaiagent/tooltape/ToolTapeAgentReplayTest.java) runs `think()` with a local fake ChatModel and then the real `ToolCallAgent.act()` / Spring AI tool manager. Recording executes the synthetic tool once; replay returns the fixture without another live callback. No paid model or real external tool is used by this regression.
 
 The adapter preserves `ToolDefinition`, `ToolMetadata` and the original JSON input. During recording only, it forwards `ToolContext` in memory; context is never submitted to the recorder. Replay retains definition/metadata and never retains or invokes the executable live callback.
 
