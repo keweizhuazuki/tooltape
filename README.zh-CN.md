@@ -109,7 +109,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 ## 验证状态
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 3 项 JUnit 测试通过；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
-- CI 配置 JDK 17/21 的 Linux、Windows、macOS 构建及 Maven/JUnit；实际结果以 [Actions](https://github.com/keweizhuazuki/tooltape/actions) 为准。
+- [已验证的 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38032949639)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
 - 界面：78 项解析与规范化检查、23 项 DOM 模型交互检查通过。浏览器启动受限，截图及真实浏览器渲染仍未验证，不使用模拟截图。
 
 ## 本次已完成（v0.1）
@@ -118,7 +118,8 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 - 默认最小记录、凭据字段排除、不保存异常消息
 - 串行录制、离线回放、缺失与额外调用检测、首次差异
 - CLI、JUnit 数据样例与可执行重试回归
-- 本地时间线界面、跨平台构建脚本与 CI 矩阵
+- 本地时间线界面、跨平台构建脚本与已验证的 CI 矩阵
+- 修复 Windows 测试数据换行问题；英文默认 README 与独立中文说明
 
 ## 下次升级
 

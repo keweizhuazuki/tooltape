@@ -110,7 +110,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 ## Verification
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 3 JUnit tests passed**; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
-- CI defines full-JDK 17/21 builds on Linux, Windows and macOS plus Maven/JUnit. See [Actions](https://github.com/keweizhuazuki/tooltape/actions) for actual results; a workflow file is not a passing run.
+- [Verified CI run](https://github.com/keweizhuazuki/tooltape/actions/runs/38032949639): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
 - Viewer: 78 parser/canonicalization checks and 23 DOM-model interaction checks passed. Real-browser rendering and screenshots remain unverified because the available browser launch was blocked; no simulated screenshot is presented.
 
 ## Completed in v0.1
@@ -119,7 +119,8 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 - Privacy-first scalar projection, credential-name exclusions, message-free exception records
 - Serial recorder, offline replay, missing/extra-call detection, first divergence
 - CLI inspect/validate/diff, JUnit fixture, executable retry regression
-- Local timeline viewer, cross-platform build scripts and CI matrix
+- Local timeline viewer, cross-platform build scripts and verified CI matrix
+- Fixed Windows fixture line endings; English default README with a separate Chinese guide
 
 ## Next upgrade
 
