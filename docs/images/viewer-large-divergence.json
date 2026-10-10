@@ -1,0 +1,75 @@
+{
+  "screenshot": "viewer-large-divergence.png",
+  "screenshotSha256": "77a5d022ff182a184644c980d391fcc96d226208aafadf9b03b4a64a9a35646c",
+  "kind": "actual chromium rendering, no image compositing",
+  "viewer": "viewer/index.html",
+  "viewerSha256": "a7158e7f78a24cf1cebfa36fc2998b17b4989d0b47642e64284e8fe934a82fff",
+  "fixture": "Deterministic synthetic 50,000-call v1 tapes; only the last output differs; final 250-call page with call 49999 selected.",
+  "sourceFixture": "viewer/browser-tests/artifacts/screenshots/desktop-chromium/synthetic-50000-primary.tape",
+  "sourceFixtureSha256": "a6da7049ac0dbba16927e73346c309987af49d4ca13213312729225d437c4d8a",
+  "fixtureEvidence": {
+    "kind": "deterministic synthetic TOOLTAPE v1, public file-input loading",
+    "generator": "viewer/browser-tests/viewer.spec.cjs",
+    "callCount": 50000,
+    "primary": {
+      "name": "synthetic-50000-primary.tape",
+      "bytes": 5095361,
+      "sha256": "a6da7049ac0dbba16927e73346c309987af49d4ca13213312729225d437c4d8a"
+    },
+    "comparison": {
+      "name": "synthetic-50000-last-drift.tape",
+      "bytes": 5095357,
+      "sha256": "b9322f39694e9c0c80e8c4327741bf403878a0bef4ee48c87c7e6a736a80fcfa"
+    },
+    "changedField": "Only the last output changes from {\"value\":49999} to {\"value\":-1}.",
+    "pageSizeLimit": 250,
+    "samples": [
+      {
+        "renderedCallCards": 250,
+        "range": "1–250 of 50000 matching calls"
+      },
+      {
+        "renderedCallCards": 0,
+        "range": "0 of 0 matching calls"
+      },
+      {
+        "renderedCallCards": 0,
+        "range": "0 of 0 matching calls"
+      },
+      {
+        "renderedCallCards": 250,
+        "range": "49751–50000 of 50000 matching calls"
+      },
+      {
+        "renderedCallCards": 250,
+        "range": "49501–49750 of 50000 matching calls"
+      },
+      {
+        "renderedCallCards": 250,
+        "range": "49751–50000 of 50000 matching calls"
+      },
+      {
+        "renderedCallCards": 250,
+        "range": "1–250 of 50000 matching calls"
+      },
+      {
+        "renderedCallCards": 250,
+        "range": "49751–50000 of 50000 matching calls"
+      }
+    ]
+  },
+  "commit": "6a1bdf270924a720bfe633c369ea395a79dd01d1",
+  "workflowRun": "38048428120",
+  "playwright": "1.64.0",
+  "browserName": "chromium",
+  "browser": "156.0.8078.4",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "isMobile": false,
+  "hasTouch": false,
+  "deviceScaleFactor": 1,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"
+}

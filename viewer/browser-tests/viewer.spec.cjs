@@ -16,6 +16,31 @@ const tape = rows => 'TOOLTAPE\t1\n' + rows.map((row, index) => [
   encode(row.input || '{}'), row.status || 'OK', encode(row.output || '{}')
 ].join('\t')).join('\n') + (rows.length ? '\n' : '');
 const calls = page => page.locator('#timeline button[data-position]');
+const callAt = (page, position) => page.locator('#timeline button[data-position="' + position + '"]');
+const previousPage = page => page.getByRole('button', { name: 'Previous page', exact: true });
+const nextPage = page => page.getByRole('button', { name: 'Next page', exact: true });
+
+async function expectTimelinePage(page, start, end, total, firstPosition = start - 1, lastPosition = end - 1) {
+  const count = total ? end - start + 1 : 0;
+  await expect(calls(page)).toHaveCount(count);
+  expect(await calls(page).count(), 'at most 250 call cards are mounted').toBeLessThanOrEqual(250);
+  await expect(page.locator('#visible-count')).toHaveText(total
+    ? `${start}–${end} of ${total} matching calls`
+    : '0 of 0 matching calls');
+  if (count) {
+    await expect(calls(page).first()).toHaveAttribute('data-position', String(firstPosition));
+    await expect(calls(page).last()).toHaveAttribute('data-position', String(lastPosition));
+  }
+  if (total > 250) {
+    await expect(page.locator('#timeline-pagination')).toBeVisible();
+    if (start === 1) await expect(previousPage(page)).toBeDisabled();
+    else await expect(previousPage(page)).toBeEnabled();
+    if (end === total) await expect(nextPage(page)).toBeDisabled();
+    else await expect(nextPage(page)).toBeEnabled();
+  } else {
+    await expect(page.locator('#timeline-pagination')).toBeHidden();
+  }
+}
 
 // Evaluate actual computed colors, including transparent ancestor backgrounds and
 // group opacity. This is intentionally limited to the viewer's solid backgrounds;
@@ -123,7 +148,7 @@ async function chooseWithKeyboard(page, button, key, input) {
   await (await chooserPromise).setFiles(input);
 }
 
-async function capture(page, browser, testInfo, name, fixtureDescription, sourceFixture = fixture) {
+async function capture(page, browser, testInfo, name, fixtureDescription, sourceFixture = fixture, fixtureEvidence = null) {
   const directory = path.join(__dirname, 'artifacts/screenshots', testInfo.project.name);
   await fs.mkdir(directory, { recursive: true });
   await page.evaluate(() => {
@@ -148,6 +173,7 @@ async function capture(page, browser, testInfo, name, fixtureDescription, source
     fixture: fixtureDescription,
     sourceFixture: path.relative(root, sourceFixture).split(path.sep).join('/'),
     sourceFixtureSha256: sha256(await fs.readFile(sourceFixture)),
+    ...(fixtureEvidence ? { fixtureEvidence } : {}),
     commit: process.env.GITHUB_SHA || null,
     workflowRun: process.env.GITHUB_RUN_ID || null,
     playwright: require('@playwright/test/package.json').version,
@@ -515,6 +541,7 @@ test('HTML-like payloads and filenames stay inert text', async ({ page }) => {
 test('empty tapes and missing calls remain inspectable', async ({ page }) => {
   await page.locator('#open-file').setInputFiles(file('empty.tape', tape([])));
   await expect(page.locator('#stat-calls')).toHaveText('0');
+  await expectTimelinePage(page, 0, 0, 0);
   await expect(page.locator('#timeline')).toContainText('no recorded calls');
   await page.locator('#compare-file').setInputFiles(fixture);
   await expect(page.locator('#compare-title')).toContainText('call missing from primary');
@@ -557,40 +584,56 @@ test('a stale real-file read cannot overwrite a newer selection', async ({ page 
 
 for (const count of [251, 501]) {
   for (const key of ['Enter', 'Space']) {
-    test(`${key} pagination keeps focus and Tab order across ${count} calls`, async ({ page }) => {
+    test(`${key} pagination replaces bounded pages and keeps focus and Tab order across ${count} calls`, async ({ page }) => {
       const rows = Array.from({ length: count }, (_, index) => ({ name: 'step.' + index }));
       await page.locator('#open-file').setInputFiles(file('many.tape', tape(rows)));
       await expect(page.locator('#stat-calls')).toHaveText(String(count));
-      await expect(calls(page)).toHaveCount(250);
-      await calls(page).nth(249).focus();
+      await expectTimelinePage(page, 1, 250, count);
+      await callAt(page, 249).focus();
       await page.keyboard.press('Tab');
-      const more = page.getByRole('button', { name: `Show next ${Math.min(250, count - 250)} calls`, exact: true });
-      await expect(more).toBeFocused();
+      // Disabled Previous is skipped on the first page.
+      await expect(nextPage(page)).toBeFocused();
       await page.keyboard.press(key);
-      await expect(calls(page)).toHaveCount(Math.min(500, count));
-      await expect(calls(page).nth(250)).toBeFocused();
-      await expect(calls(page).nth(250)).toHaveAttribute('aria-pressed', 'false');
-      await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'true');
+      await expectTimelinePage(page, 251, Math.min(500, count), count);
+      await expect(callAt(page, 250)).toBeFocused();
+      await expect(callAt(page, 250)).toHaveAttribute('aria-pressed', 'false');
+      await expect(callAt(page, 0)).toHaveCount(0);
+      await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
       await expect(page.locator('#inspector h2')).toHaveText('step.0');
 
       if (count === 501) {
         await page.keyboard.press('Tab');
-        await expect(calls(page).nth(251)).toBeFocused();
-        await calls(page).nth(499).focus();
+        await expect(callAt(page, 251)).toBeFocused();
+        await callAt(page, 499).focus();
         await page.keyboard.press('Tab');
-        await expect(page.getByRole('button', { name: 'Show next 1 calls', exact: true })).toBeFocused();
+        await expect(previousPage(page)).toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(nextPage(page)).toBeFocused();
         await page.keyboard.press(key);
-        await expect(calls(page)).toHaveCount(501);
-        await expect(calls(page).nth(500)).toBeFocused();
-        await expect(calls(page).nth(500)).toHaveAttribute('aria-pressed', 'false');
-        await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'true');
+        await expectTimelinePage(page, 501, 501, count);
+        await expect(callAt(page, 500)).toBeFocused();
+        await expect(callAt(page, 500)).toHaveAttribute('aria-pressed', 'false');
+        await expect(page.locator('#inspector h2')).toHaveText('step.0');
       }
 
-      await expect(page.getByRole('button', { name: /^Show next / })).toHaveCount(0);
       await page.keyboard.press('Tab');
+      await expect(previousPage(page)).toBeFocused();
+      await page.keyboard.press('Tab');
+      // Disabled Next is skipped on the final page.
       await expect(page.getByLabel('input', { exact: true })).toBeFocused();
       await page.keyboard.press('Shift+Tab');
-      await expect(calls(page).last()).toBeFocused();
+      await expect(previousPage(page)).toBeFocused();
+      await page.keyboard.press(key);
+      await expectTimelinePage(page, count === 501 ? 251 : 1, count === 501 ? 500 : 250, count);
+      await expect(calls(page).first()).toBeFocused();
+      if (count === 501) {
+        await previousPage(page).focus();
+        await page.keyboard.press(key);
+      }
+      await expectTimelinePage(page, 1, 250, count);
+      await expect(callAt(page, 0)).toBeFocused();
+      await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#inspector h2')).toHaveText('step.0');
     });
   }
 }
@@ -632,8 +675,8 @@ for (const focusedControl of ['search', 'errors-only']) {
     await expect(page.getByRole('searchbox')).toHaveValue('');
     await expect(page.getByLabel('Errors only', { exact: true })).not.toBeChecked();
     await expect(page.locator('#' + focusedControl)).toBeFocused();
-    await expect(calls(page)).toHaveCount(251);
-    await expect(calls(page).nth(250)).toHaveAttribute('aria-pressed', 'true');
+    await expectTimelinePage(page, 251, 251, 251);
+    await expect(callAt(page, 250)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#inspector h2')).toHaveText('step.250');
     await page.keyboard.press('Tab');
     const firstTabTarget = await page.evaluate(() => ({
@@ -660,17 +703,16 @@ for (const focusedControl of ['search', 'errors-only']) {
       }
       await expect(calls(page).first()).toBeFocused();
       await page.keyboard.press('Tab');
-      await expect(calls(page).nth(1)).toBeFocused();
+      await expect(previousPage(page)).toBeFocused();
       await page.keyboard.press('Shift+Tab');
-      await expect(calls(page).first()).toBeFocused();
-      await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'false');
-      await expect(calls(page).nth(250)).toHaveAttribute('aria-pressed', 'true');
+      await expect(callAt(page, 250)).toBeFocused();
+      await expect(callAt(page, 250)).toHaveAttribute('aria-pressed', 'true');
       await expect(page.locator('#inspector h2')).toHaveText('step.250');
     }
   });
 }
 
-test('Escape from a filtered row retains focused and selected calls beyond 250', async ({ page }) => {
+test('Escape from a filtered row keeps its bounded page and an off-page selected inspector', async ({ page }) => {
   const rows = Array.from({ length: 501 }, (_, index) => ({
     name: (index >= 499 ? 'tail.' : 'step.') + index,
     status: index >= 499 ? 'ERROR' : 'OK',
@@ -681,42 +723,106 @@ test('Escape from a filtered row retains focused and selected calls beyond 250',
   await expect(page.getByRole('alert')).toBeHidden();
   await page.getByRole('searchbox').fill('tail.');
   await page.getByLabel('Errors only', { exact: true }).check();
-  await expect(calls(page)).toHaveCount(2);
-  await calls(page).nth(1).focus();
+  await expectTimelinePage(page, 1, 2, 2, 499, 500);
+  await callAt(page, 500).focus();
   await page.keyboard.press('Enter');
-  await calls(page).first().focus();
+  await callAt(page, 499).focus();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('searchbox')).toHaveValue('');
   await expect(page.getByLabel('Errors only', { exact: true })).not.toBeChecked();
-  await expect(calls(page)).toHaveCount(501);
-  await expect(calls(page).nth(499)).toBeFocused();
-  await expect(calls(page).nth(499)).toHaveAttribute('aria-pressed', 'false');
-  await expect(calls(page).nth(500)).toHaveAttribute('aria-pressed', 'true');
+  await expectTimelinePage(page, 251, 500, 501);
+  await expect(callAt(page, 499)).toBeFocused();
+  await expect(callAt(page, 499)).toHaveAttribute('aria-pressed', 'false');
+  await expect(callAt(page, 500)).toHaveCount(0);
   await expect(page.locator('#inspector h2')).toHaveText('tail.500');
   await page.keyboard.press('Tab');
-  await expect(calls(page).nth(500)).toBeFocused();
+  await expect(previousPage(page)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(nextPage(page)).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expectTimelinePage(page, 501, 501, 501);
+  await expect(callAt(page, 500)).toBeFocused();
+  await expect(callAt(page, 500)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#inspector h2')).toHaveText('tail.500');
 });
 
-test('Escape clears filters and restores focus to the replacement Show next button', async ({ page }) => {
+test('Escape clears filters and preserves focus on an available Next page button', async ({ page }) => {
   const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
   await page.locator('#open-file').setInputFiles(file('filtered-pagination.tape', tape(rows)));
   await page.getByRole('searchbox').fill('step.');
-  await expect(calls(page)).toHaveCount(250);
-  await page.getByRole('button', { name: 'Show next 250 calls', exact: true }).focus();
+  await expectTimelinePage(page, 1, 250, 501);
+  await nextPage(page).focus();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('searchbox')).toHaveValue('');
-  await expect(calls(page)).toHaveCount(250);
-  await expect(page.getByRole('button', { name: 'Show next 250 calls', exact: true })).toBeFocused();
-  await expect(calls(page).first()).toHaveAttribute('aria-pressed', 'true');
+  await expectTimelinePage(page, 1, 250, 501);
+  await expect(nextPage(page)).toBeFocused();
+  await expect(callAt(page, 0)).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Space');
-  await expect(calls(page)).toHaveCount(500);
-  await expect(calls(page).nth(250)).toBeFocused();
+  await expectTimelinePage(page, 251, 500, 501);
+  await expect(callAt(page, 250)).toBeFocused();
 });
 
-test('keyboard divergence navigation beyond 250 survives Escape and continues pagination', async ({ page }) => {
+test('Escape preserves focus on an available Previous page button', async ({ page }) => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
+  await page.locator('#open-file').setInputFiles(file('filtered-previous.tape', tape(rows)));
+  await nextPage(page).click();
+  await callAt(page, 400).click();
+  await page.getByRole('searchbox').fill('step.');
+  await nextPage(page).click();
+  await previousPage(page).focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expectTimelinePage(page, 251, 500, 501);
+  await expect(previousPage(page)).toBeFocused();
+  await expect(callAt(page, 400)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Space');
+  await expectTimelinePage(page, 1, 250, 501);
+  await expect(callAt(page, 0)).toBeFocused();
+  await expect(page.locator('#inspector h2')).toHaveText('step.400');
+});
+
+test('Escape moves focus off a pagination button that becomes disabled', async ({ page }) => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
+  await page.locator('#open-file').setInputFiles(file('filtered-last-selection.tape', tape(rows)));
+  await nextPage(page).click();
+  await nextPage(page).click();
+  await callAt(page, 500).click();
+  await page.getByRole('searchbox').fill('step.');
+  await expectTimelinePage(page, 1, 250, 501);
+  await nextPage(page).focus();
+  await page.keyboard.press('Escape');
+  await expectTimelinePage(page, 501, 501, 501);
+  await expect(nextPage(page)).toBeDisabled();
+  await expect(callAt(page, 500)).toBeFocused();
+  await expect(callAt(page, 500)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#inspector h2')).toHaveText('step.500');
+});
+
+test('changing search or Errors only resets the page and preserves the selected inspector', async ({ page }) => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
+  await page.locator('#open-file').setInputFiles(file('reset-page.tape', tape(rows)));
+  await nextPage(page).click();
+  await nextPage(page).click();
+  await callAt(page, 500).click();
+  await expectTimelinePage(page, 501, 501, 501);
+  await page.getByRole('searchbox').fill('step.');
+  await expectTimelinePage(page, 1, 250, 501);
+  await expect(page.locator('#inspector h2')).toHaveText('step.500');
+  await nextPage(page).click();
+  await expectTimelinePage(page, 251, 500, 501);
+  await page.getByLabel('Errors only', { exact: true }).check();
+  await expectTimelinePage(page, 0, 0, 0);
+  await expect(page.locator('#timeline')).toContainText('No calls match these filters.');
+  await expect(page.locator('#inspector h2')).toHaveText('step.500');
+  await page.getByLabel('Errors only', { exact: true }).uncheck();
+  await expectTimelinePage(page, 1, 250, 501);
+  await expect(page.locator('#inspector h2')).toHaveText('step.500');
+});
+
+test('keyboard divergence navigation beyond 250 survives Escape and continues in both directions', async ({ page }) => {
   const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
   await page.locator('#open-file').setInputFiles(file('primary-many.tape', tape(rows)));
-  await expect(calls(page)).toHaveCount(250);
+  await expectTimelinePage(page, 1, 250, 501);
   const changed = rows.map((row, index) => index === 400 ? { ...row, output: '{"changed":true}' } : row);
   await page.locator('#compare-file').setInputFiles(file('comparison-many.tape', tape(changed)));
   await expect(page.locator('#compare-title')).toContainText('position 401');
@@ -726,22 +832,181 @@ test('keyboard divergence navigation beyond 250 survives Escape and continues pa
   await page.keyboard.press('Enter');
   await expect(page.getByRole('searchbox')).toHaveValue('');
   await expect(page.getByLabel('Errors only', { exact: true })).not.toBeChecked();
-  await expect(calls(page)).toHaveCount(401);
-  await expect(calls(page).nth(400)).toBeFocused();
-  await expect(calls(page).nth(400)).toHaveAttribute('aria-pressed', 'true');
+  await expectTimelinePage(page, 251, 500, 501);
+  await expect(callAt(page, 400)).toBeFocused();
+  await expect(callAt(page, 400)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('comparison output', { exact: true })).toContainText('true');
   await page.keyboard.press('Escape');
-  await expect(calls(page)).toHaveCount(401);
-  await expect(calls(page).nth(400)).toBeFocused();
-  await expect(calls(page).nth(400)).toHaveAttribute('aria-pressed', 'true');
+  await expectTimelinePage(page, 251, 500, 501);
+  await expect(callAt(page, 400)).toBeFocused();
+  await expect(callAt(page, 400)).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Show next 100 calls', exact: true })).toBeFocused();
+  await expect(callAt(page, 401)).toBeFocused();
+  await callAt(page, 499).focus();
+  await page.keyboard.press('Tab');
+  await expect(previousPage(page)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(nextPage(page)).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(calls(page)).toHaveCount(501);
-  await expect(calls(page).nth(401)).toBeFocused();
-  await expect(calls(page).nth(400)).toHaveAttribute('aria-pressed', 'true');
+  await expectTimelinePage(page, 501, 501, 501);
+  await expect(callAt(page, 500)).toBeFocused();
+  await expect(callAt(page, 400)).toHaveCount(0);
+  await expect(page.locator('#inspector h2')).toHaveText('step.400');
+  await expect(page.getByLabel('comparison output', { exact: true })).toContainText('true');
   await page.keyboard.press('Tab');
-  await expect(calls(page).nth(402)).toBeFocused();
+  await expect(previousPage(page)).toBeFocused();
+  await page.keyboard.press('Space');
+  await expectTimelinePage(page, 251, 500, 501);
+  await expect(callAt(page, 250)).toBeFocused();
+  await expect(callAt(page, 400)).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('missing-primary divergence clamps to the last bounded page and focuses the inspector', async ({ page }) => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({ name: 'step.' + index }));
+  await page.locator('#open-file').setInputFiles(file('shorter-primary.tape', tape(rows.slice(0, 500))));
+  await page.locator('#compare-file').setInputFiles(file('longer-comparison.tape', tape(rows)));
+  await expect(page.locator('#compare-title')).toContainText('position 501');
+  await expect(page.locator('#compare-title')).toContainText('call missing from primary');
+  await page.getByRole('searchbox').fill('no-matches');
+  await page.locator('#jump-divergence').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expectTimelinePage(page, 251, 500, 500);
+  await expect(page.locator('#inspector')).toBeFocused();
+  await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+  await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.getByLabel('comparison input', { exact: true })).toHaveText('{}');
+  await previousPage(page).click();
+  await expectTimelinePage(page, 1, 250, 500);
+  await expect(callAt(page, 0)).toBeFocused();
+  await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+  await nextPage(page).click();
+  await expectTimelinePage(page, 251, 500, 500);
+  await expect(callAt(page, 250)).toBeFocused();
+  await expect(page.locator('#inspector')).toContainText('This call is missing from the primary tape.');
+  await openFixture(page);
+  await expectTimelinePage(page, 1, 2, 2);
+  await expect(page.locator('#comparison')).toBeHidden();
+});
+
+test('50,000-call file inputs keep last-divergence inspection and navigation within 250 rendered cards', async ({ page, browser }, testInfo) => {
+  // A finite functional-regression budget, not a speed benchmark or timing claim.
+  // This scenario runs in every configured desktop/mobile engine project.
+  test.setTimeout(120000);
+  const count = 50000;
+  const rows = Array.from({ length: count }, (_, index) => ({
+    name: 'step.' + index,
+    nanos: '1000',
+    input: JSON.stringify({ sequence: index, source: 'synthetic' }),
+    output: JSON.stringify({ value: index })
+  }));
+  const primary = file('synthetic-50000-primary.tape', tape(rows));
+  const comparison = file('synthetic-50000-last-drift.tape', tape(rows.map((row, index) =>
+    index === count - 1 ? { ...row, output: '{"value":-1}' } : row)));
+  for (const input of [primary, comparison]) {
+    expect(input.buffer.length, 'the ordinary input fits the documented 16 MiB limit').toBeLessThanOrEqual(16 * 1024 * 1024);
+    expect(input.buffer.toString('utf8').split('\n').length - 2).toBe(count);
+  }
+  await page.evaluate(() => {
+    const timeline = document.getElementById('timeline');
+    window.__tooltapePageSamples = [];
+    const observer = new MutationObserver(() => {
+      window.__tooltapePageSamples.push({
+        renderedCallCards: timeline.querySelectorAll('button[data-position]').length,
+        range: document.getElementById('visible-count').textContent
+      });
+    });
+    observer.observe(timeline, { childList: true });
+  });
+  // Use the public file inputs, without replacing the parser or viewer state.
+  await page.locator('#open-file').setInputFiles(primary);
+  await expect(page.locator('#stat-calls')).toHaveText('50,000', { timeout: 30000 });
+  await expect(page.getByRole('alert')).toBeHidden();
+  await expectTimelinePage(page, 1, 250, count);
+  await page.locator('#compare-file').setInputFiles(comparison);
+  await expect(page.locator('#compare-title')).toHaveText('First divergence · position 50000 · output / error', { timeout: 30000 });
+  await page.getByRole('searchbox').fill('no-matching-synthetic-tool');
+  await page.getByLabel('Errors only', { exact: true }).check();
+  await expectTimelinePage(page, 0, 0, 0);
+  await page.locator('#jump-divergence').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expect(page.getByLabel('Errors only', { exact: true })).not.toBeChecked();
+  await expectTimelinePage(page, 49751, 50000, count);
+  const last = callAt(page, count - 1);
+  await expect(last).toBeFocused();
+  await expect(last).toHaveAccessibleName('Call 49999: step.49999, OK');
+  await expect(last).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#inspector h2')).toHaveText('step.49999');
+  await expect(page.getByLabel('input', { exact: true })).toContainText('49999');
+  await expect(page.getByLabel('output', { exact: true })).toContainText('49999');
+  await expect(page.getByLabel('comparison output', { exact: true })).toContainText('-1');
+  await page.keyboard.press('Escape');
+  await expectTimelinePage(page, 49751, 50000, count);
+  await expect(last).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(previousPage(page)).toBeFocused();
+  await page.keyboard.press('Space');
+  await expectTimelinePage(page, 49501, 49750, count);
+  await expect(callAt(page, 49500)).toBeFocused();
+  await expect(last).toHaveCount(0);
+  await expect(page.locator('#timeline button[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('#inspector h2')).toHaveText('step.49999');
+  await expect(page.getByLabel('comparison output', { exact: true })).toContainText('-1');
+  await callAt(page, 49749).focus();
+  await page.keyboard.press('Tab');
+  await expect(previousPage(page)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(nextPage(page)).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expectTimelinePage(page, 49751, 50000, count);
+  await expect(callAt(page, 49750)).toBeFocused();
+  await expect(last).toHaveAttribute('aria-pressed', 'true');
+
+  // Changing a filter starts from its first bounded page; jumping again restores
+  // the true final position rather than retaining an obsolete page offset.
+  await page.getByRole('searchbox').fill('step.');
+  await expectTimelinePage(page, 1, 250, count);
+  await expect(page.locator('#inspector h2')).toHaveText('step.49999');
+  await page.locator('#jump-divergence').focus();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expectTimelinePage(page, 49751, 50000, count);
+  await expect(last).toBeFocused();
+  await expect(last).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    'the bounded late-divergence page fits the viewport').toBe(true);
+  const samples = await page.evaluate(() => window.__tooltapePageSamples);
+  expect(samples.length, 'actual timeline replacements were observed').toBeGreaterThan(0);
+  expect(Math.max(...samples.map(sample => sample.renderedCallCards)),
+    'no observed timeline replacement mounted more than one page').toBeLessThanOrEqual(250);
+  const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+  const evidence = {
+    kind: 'deterministic synthetic TOOLTAPE v1, public file-input loading',
+    generator: 'viewer/browser-tests/viewer.spec.cjs',
+    callCount: count,
+    primary: { name: primary.name, bytes: primary.buffer.length, sha256: sha256(primary.buffer) },
+    comparison: { name: comparison.name, bytes: comparison.buffer.length, sha256: sha256(comparison.buffer) },
+    changedField: 'Only the last output changes from {"value":49999} to {"value":-1}.',
+    pageSizeLimit: 250,
+    samples
+  };
+  await testInfo.attach('bounded-50000-call-evidence', {
+    body: Buffer.from(JSON.stringify({ project: testInfo.project.name, ...evidence }, null, 2)),
+    contentType: 'application/json'
+  });
+  if (testInfo.project.name === 'desktop-chromium') {
+    const directory = path.join(__dirname, 'artifacts/screenshots', testInfo.project.name);
+    await fs.mkdir(directory, { recursive: true });
+    for (const input of [primary, comparison]) {
+      const fixturePath = path.join(directory, input.name);
+      await fs.writeFile(fixturePath, input.buffer);
+      await testInfo.attach(input.name, { path: fixturePath, contentType: 'text/plain' });
+    }
+    await capture(page, browser, testInfo, 'viewer-large-divergence',
+      'Deterministic synthetic 50,000-call v1 tapes; only the last output differs; final 250-call page with call 49999 selected.',
+      path.join(directory, primary.name), evidence);
+  }
 });
 
 test('v2 closure, provenance, and policy warnings are visible and distinguish incomplete recordings', async ({ page, browser }, testInfo) => {

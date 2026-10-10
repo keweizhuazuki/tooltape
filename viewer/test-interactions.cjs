@@ -9,14 +9,24 @@ class Node {
  constructor(tag){this.tag=tag;this.children=[];this.listeners={};this.attributes={};this.dataset={};this.style={};this.value='';this.checked=false;this.hidden=false;this.className='';this._text='';this.classList={toggle:(name,on)=>{const parts=new Set(this.className.split(' ').filter(Boolean));if(on)parts.add(name);else parts.delete(name);this.className=[...parts].join(' ');},add:name=>this.classList.toggle(name,true),remove:name=>this.classList.toggle(name,false)};}
  set textContent(x){this._text=String(x);this.children=[];}get textContent(){return this._text+this.children.map(n=>n.textContent).join('');}
  set innerHTML(x){throw Error('Unsafe innerHTML rendering');}append(...nodes){for(const n of nodes){if(n.tag==='#fragment')this.children.push(...n.children);else this.children.push(n);}}replaceChildren(...nodes){this._text='';this.children=[];this.append(...nodes);}
- setAttribute(k,v){this.attributes[k]=v;}addEventListener(k,fn){(this.listeners[k]??=[]).push(fn);}fire(k,event={}){for(const fn of this.listeners[k]||[])fn(event);}click(){this.fire('click');}focus(){}scrollIntoView(){}
- descendants(){return this.children.flatMap(c=>[c,...c.descendants()]);}querySelectorAll(q){if(q==='button[data-position]')return this.descendants().filter(n=>n.tag==='button'&&n.dataset.position!==undefined);return [];}querySelector(q){let m=q.match(/\[data-position="(\d+)"\]/);return m?this.descendants().find(n=>n.dataset.position===m[1]):null;}
+ setAttribute(k,v){this.attributes[k]=v;}addEventListener(k,fn){(this.listeners[k]??=[]).push(fn);}fire(k,event={}){for(const fn of this.listeners[k]||[])fn(event);}click(){if(!this.disabled)this.fire('click');}focus(){if(!this.disabled)document.activeElement=this;}scrollIntoView(){}
+ descendants(){return this.children.flatMap(c=>[c,...c.descendants()]);}querySelectorAll(q){if(q==='button[data-position]')return this.descendants().filter(n=>n.tag==='button'&&n.dataset.position!==undefined);return [];}querySelector(q){if(q==='button[data-position]')return this.querySelectorAll(q)[0]||null;let m=q.match(/\[data-position="(\d+)"\]/);return m?this.descendants().find(n=>n.dataset.position===m[1]):null;}
 }
 const nodes={};for(const m of html.matchAll(/id="([^"]+)"/g))nodes[m[1]]=new Node('div');
-const document=new Node('document');document.body=new Node('body');document.getElementById=x=>nodes[x];document.createElement=tag=>new Node(tag);document.createDocumentFragment=()=>new Node('#fragment');
+const document=new Node('document');document.body=new Node('body');document.activeElement=document.body;document.getElementById=x=>nodes[x];document.createElement=tag=>new Node(tag);document.createDocumentFragment=()=>new Node('#fragment');
 const ctx={TextEncoder,TextDecoder,Uint8Array,atob,btoa,document,console};vm.createContext(ctx);vm.runInContext(script,ctx);
 const run=x=>vm.runInContext(x,ctx);let checks=0;const check=f=>{f();checks++};
 const file=(text,name='test.tape')=>{let bytes=new TextEncoder().encode(text);return{name,size:bytes.length,arrayBuffer:async()=>bytes.buffer}};
+// Apply the structural budget to every timeline replacement, including filtered
+// resets and comparison jumps. This measures the DOM model, not browser latency.
+const replaceTimeline=nodes.timeline.replaceChildren;
+let timelineRenders=0;
+nodes.timeline.replaceChildren=function(...children){
+ replaceTimeline.apply(this,children);
+ check(()=>assert.ok(this.querySelectorAll('button[data-position]').length<=250,'Timeline must render at most 250 call buttons'));
+ check(()=>assert.ok(this.descendants().length<=2750,'Timeline must render at most 2,750 row elements'));
+ timelineRenders++;
+};
 (async()=>{
  nodes['load-example'].click();check(()=>assert.equal(nodes['stat-calls'].textContent,'2'));check(()=>assert.equal(nodes['stat-errors'].textContent,'1'));check(()=>assert.equal(nodes['stat-success'].textContent,'50'));check(()=>assert.equal(nodes.timeline.querySelectorAll('button[data-position]').length,2));
  nodes.timeline.querySelector('[data-position="1"]').click();check(()=>assert.ok(nodes.inspector.textContent.includes('temperature')));
@@ -100,5 +110,144 @@ const file=(text,name='test.tape')=>{let bytes=new TextEncoder().encode(text);re
  releaseCompare(new TextEncoder().encode(v2()).buffer);await pendingCompare;
  check(()=>assert.match(nodes['compare-note'].textContent,/new-compare.tape/));
  check(()=>assert.match(nodes['compare-context'].textContent,/new.source/));
- console.log('PASS: '+checks+' DOM-model interaction, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, XSS-safe rendering, file-race, and size-limit checks. (Not a browser rendering test.)');
+ // Page navigation never changes the inspector selection or accumulates timeline rows.
+ const calls=()=>nodes.timeline.querySelectorAll('button[data-position]');
+ const callAt=position=>nodes.timeline.querySelector('[data-position="'+position+'"]');
+ const escape=()=>document.fire('keydown',{key:'Escape'});
+ const filter=query=>{nodes.search.value=query;nodes.search.fire('input');};
+ const normalRows=Array.from({length:501},(_,index)=>[index,'1',ctx.encode((index<499?'step.':'tail.')+index),ctx.encode('{}'),'OK',ctx.encode('{}')].join('\t'));
+ const normalTape=rows=>'TOOLTAPE\t1\n'+(rows.length?rows.join('\n')+'\n':'');
+ for(const size of [0,1,250,251,500,501]) {
+  await ctx.readFile(file(normalTape(normalRows.slice(0,size)),'pages-'+size+'.tape'),false);
+  check(()=>assert.equal(calls().length,Math.min(250,size)));
+  check(()=>assert.equal(nodes['timeline-pagination'].hidden,size<=250));
+  check(()=>assert.equal(nodes['previous-page'].disabled,true));
+  check(()=>assert.equal(nodes['next-page'].disabled,size<=250));
+  check(()=>assert.equal(nodes['visible-count'].textContent,(size?'1–'+Math.min(250,size):'0')+' of '+size+' matching calls'));
+  const inspector=nodes.inspector.children[0];
+  const visited=calls().map(button=>Number(button.dataset.position));
+  while(!nodes['next-page'].disabled) {
+   nodes['next-page'].click();
+   check(()=>assert.ok(calls().length<=250));
+   check(()=>assert.equal(document.activeElement,calls()[0]));
+   check(()=>assert.equal(nodes.inspector.children[0],inspector));
+   check(()=>assert.ok(calls().every(button=>button.attributes['aria-pressed']==='false')));
+   visited.push(...calls().map(button=>Number(button.dataset.position)));
+  }
+  check(()=>assert.deepEqual(visited,Array.from({length:size},(_,i)=>i)));
+  // Disabled boundaries do not rebuild the timeline.
+  const finalFirst=calls()[0];nodes['next-page'].click();
+  check(()=>assert.equal(calls()[0],finalFirst));
+  while(!nodes['previous-page'].disabled) {
+   nodes['previous-page'].click();
+   check(()=>assert.ok(calls().length<=250));
+   check(()=>assert.equal(document.activeElement,calls()[0]));
+   check(()=>assert.equal(nodes.inspector.children[0],inspector));
+  }
+  if(size)check(()=>assert.equal(calls()[0].attributes['aria-pressed'],'true'));
+ }
+ // Selection and keyboard focus can belong to different pages after filter reset.
+ filter('tail.');callAt(500).click();callAt(499).focus();escape();
+ check(()=>assert.equal(calls().length,250));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'251–500 of 501 matching calls'));
+ check(()=>assert.equal(document.activeElement,callAt(499)));
+ check(()=>assert.equal(callAt(500),undefined));
+ check(()=>assert.match(nodes.inspector.textContent,/tail\.500/));
+ check(()=>assert.ok(calls().every(button=>button.attributes['aria-pressed']==='false')));
+ nodes['next-page'].click();
+ check(()=>assert.equal(calls().length,1));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'501–501 of 501 matching calls'));
+ check(()=>assert.equal(document.activeElement,callAt(500)));
+ check(()=>assert.equal(callAt(500).attributes['aria-pressed'],'true'));
+ const selectedNode=callAt(500),selectedInspector=nodes.inspector.children[0];escape();
+ check(()=>assert.equal(callAt(500),selectedNode));
+ check(()=>assert.equal(document.activeElement,selectedNode));
+ check(()=>assert.equal(nodes.inspector.children[0],selectedInspector));
+ // Both filter controls keep focus, with the selected call revealed on its own page.
+ for(const control of ['search','errors-only']) {
+  filter('tail.');nodes['errors-only'].checked=true;nodes['errors-only'].fire('change');
+  nodes[control].focus();escape();
+  check(()=>assert.equal(nodes.search.value,''));
+  check(()=>assert.equal(nodes['errors-only'].checked,false));
+  check(()=>assert.equal(document.activeElement,nodes[control]));
+  check(()=>assert.equal(calls().length,1));
+  check(()=>assert.equal(callAt(500).attributes['aria-pressed'],'true'));
+ }
+ // Empty results and repeated filter edits reset the page without losing selection.
+ filter('absent');
+ check(()=>assert.equal(calls().length,0));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'0 of 0 matching calls'));
+ check(()=>assert.equal(nodes['timeline-pagination'].hidden,true));
+ filter('step.');
+ check(()=>assert.equal(nodes['visible-count'].textContent,'1–250 of 499 matching calls'));
+ check(()=>assert.equal(nodes['previous-page'].disabled,true));
+ check(()=>assert.match(nodes.inspector.textContent,/tail\.500/));
+ // An available page control survives Escape; disabled/hidden controls move focus to a call.
+ callAt(0).click();nodes['next-page'].focus();escape();
+ check(()=>assert.equal(document.activeElement,nodes['next-page']));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'1–250 of 501 matching calls'));
+ filter('step.');nodes['next-page'].click();nodes['previous-page'].focus();escape();
+ check(()=>assert.equal(document.activeElement,callAt(0)));
+ check(()=>assert.equal(nodes['previous-page'].disabled,true));
+ filter('step.');nodes['next-page'].click();callAt(498).click();
+ nodes['previous-page'].focus();escape();
+ check(()=>assert.equal(document.activeElement,nodes['previous-page']));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'251–500 of 501 matching calls'));
+ // Maximum valid recording: final divergence and Escape stay within one 250-call page.
+ const largeRows=Array.from({length:50000},(_,index)=>[index,'1',ctx.encode('step.'+index),ctx.encode('{}'),'OK',ctx.encode('{}')].join('\t'));
+ const large=normalTape(largeRows);
+ await ctx.readFile(file(large,'large-normal.tape'),false);
+ check(()=>assert.equal(calls().length,250));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'1–250 of 50000 matching calls'));
+ const changedRows=largeRows.slice();changedRows[49999]=changedRows[49999].replace(/e30$/,ctx.encode('{"changed":true}'));
+ await ctx.readFile(file(normalTape(changedRows),'large-normal-drift.tape'),true);
+ check(()=>assert.match(nodes['compare-title'].textContent,/position 50000/));
+ nodes['jump-divergence'].click();
+ check(()=>assert.equal(calls().length,250));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'49751–50000 of 50000 matching calls'));
+ check(()=>assert.equal(document.activeElement,callAt(49999)));
+ check(()=>assert.equal(callAt(49999).attributes['aria-pressed'],'true'));
+ check(()=>assert.match(nodes.inspector.textContent,/COMPARISON OUTPUT/));
+ check(()=>assert.match(nodes.inspector.textContent,/changed/));
+ check(()=>assert.equal(nodes['next-page'].disabled,true));
+ check(()=>assert.equal(nodes['previous-page'].disabled,false));
+ const lastNode=callAt(49999);escape();
+ check(()=>assert.equal(callAt(49999),lastNode));
+ check(()=>assert.equal(document.activeElement,lastNode));
+ filter('step.49999');nodes.search.focus();escape();
+ check(()=>assert.equal(calls().length,250));
+ check(()=>assert.equal(document.activeElement,nodes.search));
+ check(()=>assert.equal(callAt(49999).attributes['aria-pressed'],'true'));
+ filter('step.1');nodes['jump-divergence'].click();
+ check(()=>assert.equal(nodes.search.value,''));
+ check(()=>assert.equal(calls().length,250));
+ check(()=>assert.equal(document.activeElement,callAt(49999)));
+ nodes['previous-page'].click();
+ check(()=>assert.equal(calls().length,250));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'49501–49750 of 50000 matching calls'));
+ check(()=>assert.match(nodes.inspector.textContent,/step\.49999/));
+ nodes['next-page'].click();
+ check(()=>assert.equal(callAt(49999).attributes['aria-pressed'],'true'));
+ nodes['clear-compare'].focus();nodes['clear-compare'].click();
+ check(()=>assert.equal(document.activeElement,nodes['compare-button']));
+ check(()=>assert.equal(nodes.comparison.hidden,true));
+ check(()=>assert.match(nodes.inspector.textContent,/step\.49999/));
+ check(()=>assert.doesNotMatch(nodes.inspector.textContent,/COMPARISON OUTPUT/));
+ check(()=>assert.equal(calls().length,250));
+ // Missing-primary divergence has no row to focus and still clamps to an existing page.
+ await ctx.readFile(file(normalTape(normalRows.slice(0,500)),'short-primary.tape'),false);
+ await ctx.readFile(file(normalTape(normalRows),'longer-comparison.tape'),true);
+ nodes['jump-divergence'].click();
+ check(()=>assert.equal(calls().length,250));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'251–500 of 500 matching calls'));
+ check(()=>assert.equal(document.activeElement,nodes.inspector));
+ check(()=>assert.match(nodes.inspector.textContent,/missing from the primary/));
+ check(()=>assert.match(nodes.inspector.textContent,/tail\.500/));
+ await ctx.readFile(file(normalTape([]),'empty-primary.tape'),false);
+ await ctx.readFile(file(normalTape(normalRows.slice(0,1)),'one-comparison.tape'),true);
+ nodes['jump-divergence'].click();
+ check(()=>assert.equal(calls().length,0));
+ check(()=>assert.equal(document.activeElement,nodes.inspector));
+ check(()=>assert.equal(nodes['visible-count'].textContent,'0 of 0 matching calls'));
+ console.log('PASS: '+checks+' DOM-model interaction, bounded pagination through 50,000 valid calls, focus/selection continuity, v1/v2 provenance/closure display, policy warnings, error-filter, comparison, XSS-safe rendering, file-race, and size-limit checks; '+timelineRenders+' timeline renders stayed within 250 calls / 2,750 row elements. (Not a browser rendering test.)');
 })().catch(e=>{console.error(e);process.exit(1)});
