@@ -17,7 +17,7 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 
 ![ToolTape v2 会话时间线与已录制的工具异常](docs/images/viewer-session.png)
 
-图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)已通过五组引擎/视口配置下的全部 153 项有效检查。
+图中为仓库自带 v2 重试数据的真实 Chromium 截图。[来源记录](docs/images/viewer-session.json)包含源码提交、浏览器版本及文件哈希；[对应浏览器测试](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120)已通过五组引擎/视口配置下的全部 178 项有效检查。
 
 <details>
 <summary>查看首次差异比较与移动布局</summary>
@@ -27,6 +27,15 @@ ToolTape 把 Java 工具调用边界变成可复用的测试数据。录制调�
 <img src="docs/images/viewer-mobile.png" alt="390px Chromium 移动模拟中的 ToolTape 查看器" width="390">
 
 移动截图来自浏览器模拟，不代表真机验证。PNG 为浏览器直接输出，未进行图像合成。
+
+</details>
+
+<details>
+<summary>查看 50,000 条录制的最后一个分歧</summary>
+
+![50,000 条合成录制的最后 250 条页面及末尾输出差异](docs/images/viewer-large-divergence.png)
+
+来自真实 Chromium：两份确定性合成录制仅在最后输出上不同。全部五个浏览器项目都通过公开文件输入加载数据，并在导航中观察到最多 250 个挂载的调用卡片。验证的是有界渲染，不是延迟基准。[数据哈希与截图来源](docs/images/viewer-large-divergence.json)。
 
 </details>
 
@@ -177,7 +186,7 @@ java -jar target/tooltape.jar diff fixtures/weather-retry.tape target/weather.ta
 
 - 本地 Linux/JDK 21：45 项无依赖检查及 35 项核心 JUnit 测试通过；另有 164 个单命令及 100 个批量 CLI 子进程场景通过，覆盖 JSON 隐私及退出码；CLI 和重试示例已执行。本地使用编译器模块及 source/target 17，Java 17 API 兼容由完整 JDK CI 验证。
 - [已验证的 CI](https://github.com/keweizhuazuki/tooltape/pull/12/checks)：Linux、Windows、macOS × JDK 17/21 六组构建、Maven/JUnit 和界面测试全部通过。首次 Windows CI 发现 Git 转换测试数据为 CRLF，已用 `.gitattributes` 保留 LF，重跑通过。
-- 界面：232 项解析与规范化检查、334 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019)通过 153 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
+- 界面：232 项解析与规范化检查、334 项 DOM 模型交互检查通过。[真实浏览器 CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120)通过 178 项 Chromium、Firefox 和 WebKit 桌面/移动模拟检查，跳过 2 项移动端重复截图，无失败或不稳定重试。
 
 ## 本次已完成（v0.2）
 

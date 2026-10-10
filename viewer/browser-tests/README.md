@@ -6,7 +6,9 @@ These development-only checks open `viewer/index.html` directly through `file://
 
 ## Verified run
 
-[Run 38039531019](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019), source `1d9d113`, passed 153 checks with two intentional mobile duplicate screenshot skips and no failures or retries. All 11 screenshot/provenance pairs were downloaded, hash-checked and visually inspected. README images select Chromium explicitly; other engine captures remain in the workflow artifact.
+[Run 38048428120](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120), source `6a1bdf2`, passed 178 checks with two intentional mobile duplicate screenshot skips and no failures or retries. All 12 screenshot/provenance pairs were downloaded and hash-checked; the five Chromium captures were visually inspected. Four selected Chromium captures are published in `docs/images/`; other engine captures remain in the workflow artifact.
+
+Each project loaded the same two approximately 5.1 MB synthetic recordings through the public file inputs (5,095,361 and 5,095,357 bytes). All eight observed timeline replacements per project stayed within 250 call cards. The final divergence, previous/next navigation, filter reset and focus assertions passed in every project. This is functional and DOM-size evidence, not a measured latency improvement.
 
 The keyboard regression records the actual post-Escape Tab target. Firefox 157 gives the overflowing timeline its own native Tab stop; Chromium 156 and WebKit 27.2 enter the first row directly. The test permits only that exact visible overflowing container, then requires forward/backward row traversal while preserving the selected call. It does not skip keyboard checks for any engine.
 

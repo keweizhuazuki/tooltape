@@ -21,7 +21,7 @@ ToolTape turns a Java tool boundary into a reusable test fixture. Record the ord
 
 ![ToolTape v2 session timeline and recorded tool failure](docs/images/viewer-session.png)
 
-Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed all 153 active checks across five engine/viewport projects.
+Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenance](docs/images/viewer-session.json) records the exact source commit, browser version and file hashes; [the browser run](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120) passed all 178 active checks across five engine/viewport projects.
 
 <details>
 <summary>See the first-divergence comparison and mobile layout</summary>
@@ -31,6 +31,15 @@ Actual Chromium capture of the checked-in v2 retry fixture. [Screenshot provenan
 <img src="docs/images/viewer-mobile.png" alt="ToolTape viewer in 390px Chromium mobile emulation" width="390">
 
 The mobile image is browser emulation, not a physical-device claim. PNGs are direct browser screenshots with no compositing.
+
+</details>
+
+<details>
+<summary>Inspect the last divergence in a 50,000-call recording</summary>
+
+![The final 250-call page and last differing output in a 50,000-call synthetic recording](docs/images/viewer-large-divergence.png)
+
+Actual Chromium capture of two deterministic synthetic tapes, differing only at the last output. All five browser projects loaded the files through the public file inputs and observed at most 250 mounted call cards during navigation. This verifies bounded rendering, not a latency benchmark. [Fixture hashes and capture provenance](docs/images/viewer-large-divergence.json).
 
 </details>
 
@@ -182,7 +191,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 - Local Linux/JDK 21: **45 dependency-free acceptance checks + 35 core JUnit tests passed**; 164 single-command and 100 batch CLI subprocess cases also passed, including JSON privacy and exit codes; CLI and retry example executed. The environment lacks a complete `javac` launcher/`ct.sym`, so local compilation used the JDK compiler module with source/target 17; this alone is not proof of Java 17 API compatibility.
 - [Verified v0.2 CI run](https://github.com/keweizhuazuki/tooltape/pull/12/checks): all six Linux/Windows/macOS × JDK 17/21 builds, Maven/JUnit and viewer tests passed. The first Windows run exposed Git CRLF conversion of fixtures; `.gitattributes` now preserves LF and the rerun passed.
-- Viewer: 232 parser/canonicalization checks and 334 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38039531019) passed 153 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
+- Viewer: 232 parser/canonicalization checks and 334 DOM-model interaction checks passed. [Real browser CI](https://github.com/keweizhuazuki/tooltape/actions/runs/38048428120) passed 178 checks across Chromium, Firefox and WebKit desktop/mobile-emulation projects, with two intentional mobile duplicate screenshot skips and no failures or flakes. Screenshots are real browser captures, not illustrations.
 
 ## Completed in v0.2
 
