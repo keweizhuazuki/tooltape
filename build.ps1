@@ -12,6 +12,8 @@ $tests = Get-ChildItem src/test/java -Recurse -Filter *.java | Where-Object Name
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & java -ea -cp 'target/classes;target/test-classes' dev.tooltape.CoreTest
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& java -ea -cp 'target/classes;target/test-classes' dev.tooltape.CliProcessTest
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & javac --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Output 'Built target/tooltape.jar'

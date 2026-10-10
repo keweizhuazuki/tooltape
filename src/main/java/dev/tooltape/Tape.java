@@ -111,7 +111,7 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
     try (InputStream in = Files.newInputStream(path)) {
       bytes = in.readNBytes(MAX_BYTES + 1);
     }
-    if (bytes.length > MAX_BYTES) throw new IOException("Tape exceeds 16 MiB");
+    if (bytes.length > MAX_BYTES) throw new InvalidTapeException("Tape exceeds 16 MiB");
     String text;
     try {
       text =
@@ -121,12 +121,14 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
               .decode(ByteBuffer.wrap(bytes))
               .toString();
     } catch (CharacterCodingException e) {
-      throw new IOException("Invalid UTF-8", e);
+      throw new InvalidTapeException("Invalid UTF-8", e);
     }
-    if (!text.endsWith("\n")) throw new IOException("Truncated tape: missing final newline");
+    if (!text.endsWith("\n"))
+      throw new InvalidTapeException("Truncated tape: missing final newline");
     String[] lines = text.split("\n", -1);
     boolean v2 = lines[0].equals(HEADER_V2);
-    if (!v2 && !lines[0].equals(HEADER)) throw new IOException("Unsupported tape header/version");
+    if (!v2 && !lines[0].equals(HEADER))
+      throw new InvalidTapeException("Unsupported tape header/version");
     Metadata metadata = null;
     int firstEvent = 1;
     if (v2) {
@@ -146,7 +148,7 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
           throw new IllegalArgumentException("Metadata values must be strings");
         metadata = new Metadata((String) values.get("policyId"), (String) values.get("source"));
       } catch (IllegalArgumentException | CharacterCodingException e) {
-        throw new IOException("Invalid v2 metadata: " + e.getMessage(), e);
+        throw new InvalidTapeException("Invalid v2 metadata: " + e.getMessage(), e);
       }
       firstEvent = 2;
     }
@@ -181,12 +183,13 @@ public record Tape(List<Tape.Event> events, Metadata metadata, boolean complete)
           throw new IllegalArgumentException("Canonical tape payload exceeds 16 MiB");
         events.add(event);
       } catch (IllegalArgumentException | CharacterCodingException e) {
-        throw new IOException("Invalid event at line " + (i + 1) + ": " + e.getMessage(), e);
+        throw new InvalidTapeException(
+            "Invalid event at line " + (i + 1) + ": " + e.getMessage(), e);
       }
     try {
       return new Tape(events, metadata, complete);
     } catch (IllegalArgumentException e) {
-      throw new IOException(e.getMessage(), e);
+      throw new InvalidTapeException(e.getMessage(), e);
     }
   }
 

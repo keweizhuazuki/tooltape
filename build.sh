@@ -9,5 +9,6 @@ jar --create --date=2026-10-10T00:00:00Z --file target/tooltape.jar --main-class
 find src/test/java -name '*.java' ! -name '*JUnitTest.java' | sort > target/test-sources.txt
 javac --release 17 -cp target/classes -d target/test-classes @target/test-sources.txt
 java -ea -cp target/classes:target/test-classes dev.tooltape.CoreTest
+java -ea -cp target/classes:target/test-classes dev.tooltape.CliProcessTest
 javac --release 17 -cp target/classes -d target/example-classes examples/RetryRegression.java
 printf 'Built target/tooltape.jar\n'
