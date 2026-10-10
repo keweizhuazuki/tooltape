@@ -18,7 +18,6 @@ module.exports = defineConfig({
     ['json', { outputFile: path.join(__dirname, 'artifacts', 'test-results.json') }]
   ],
   use: {
-    browserName: 'chromium',
     headless: true,
     offline: true,
     locale: 'en-US',
@@ -30,7 +29,10 @@ module.exports = defineConfig({
     trace: 'retain-on-failure'
   },
   projects: [
-    { name: 'desktop-chromium', use: { viewport: { width: 1440, height: 1000 } } },
-    { name: 'mobile-chromium', use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } }
+    { name: 'desktop-chromium', use: { browserName: 'chromium', viewport: { width: 1440, height: 1000 } } },
+    { name: 'mobile-chromium', use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: 'desktop-firefox', use: { browserName: 'firefox', viewport: { width: 1440, height: 1000 } } },
+    { name: 'desktop-webkit', use: { browserName: 'webkit', viewport: { width: 1440, height: 1000 } } },
+    { name: 'mobile-webkit', use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } }
   ]
 });

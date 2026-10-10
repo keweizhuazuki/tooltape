@@ -124,18 +124,25 @@ async function chooseWithKeyboard(page, button, key, input) {
 }
 
 async function capture(page, browser, testInfo, name, fixtureDescription, sourceFixture = fixture) {
-  const directory = path.join(__dirname, 'artifacts/screenshots');
+  const directory = path.join(__dirname, 'artifacts/screenshots', testInfo.project.name);
   await fs.mkdir(directory, { recursive: true });
   await page.evaluate(() => {
     document.activeElement?.blur();
     window.scrollTo(0, 0);
   });
   const screenshot = path.join(directory, name + '.png');
-  await page.screenshot({ path: screenshot, fullPage: true, animations: 'disabled' });
+  const screenshotBytes = await page.screenshot({ path: screenshot, fullPage: true, animations: 'disabled' });
   const sha256 = data => createHash('sha256').update(data).digest('hex');
-  await fs.writeFile(path.join(directory, name + '.json'), JSON.stringify({
+  const browserName = browser.browserType().name();
+  const rendering = await page.evaluate(() => ({
+    deviceScaleFactor: window.devicePixelRatio,
+    userAgent: navigator.userAgent
+  }));
+  const provenance = path.join(directory, name + '.json');
+  await fs.writeFile(provenance, JSON.stringify({
     screenshot: name + '.png',
-    kind: 'actual Chromium rendering, no image compositing',
+    screenshotSha256: sha256(screenshotBytes),
+    kind: 'actual ' + browserName + ' rendering, no image compositing',
     viewer: 'viewer/index.html',
     viewerSha256: sha256(await fs.readFile(viewer)),
     fixture: fixtureDescription,
@@ -144,12 +151,16 @@ async function capture(page, browser, testInfo, name, fixtureDescription, source
     commit: process.env.GITHUB_SHA || null,
     workflowRun: process.env.GITHUB_RUN_ID || null,
     playwright: require('@playwright/test/package.json').version,
+    browserName,
     browser: browser.version(),
     project: testInfo.project.name,
     viewport: page.viewportSize(),
-    deviceScaleFactor: 1
+    isMobile: Boolean(testInfo.project.use.isMobile),
+    hasTouch: Boolean(testInfo.project.use.hasTouch),
+    ...rendering
   }, null, 2) + '\n');
   await testInfo.attach(name, { path: screenshot, contentType: 'image/png' });
+  await testInfo.attach(name + '-provenance', { path: provenance, contentType: 'application/json' });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -515,22 +526,15 @@ test('empty tapes and missing calls remain inspectable', async ({ page }) => {
 
 test('drop accepts one real File and rejects multiple files without losing the run', async ({ page }) => {
   const content = await fs.readFile(fixture, 'utf8');
-  await page.evaluate(text => {
-    const transfer = new DataTransfer();
-    transfer.items.add(new File([text], 'dropped.tape', { type: 'text/plain' }));
-    document.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: transfer }));
-    document.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
-  }, content);
+  await page.locator('body').drop({ files: file('dropped.tape', content) });
   await expect(page.locator('#filename')).toHaveText('dropped.tape');
   await expect(calls(page)).toHaveCount(2);
   await expect(page.locator('body')).not.toHaveClass(/drop-active/);
-  await page.evaluate(text => {
-    const transfer = new DataTransfer();
-    for (const name of ['first.tape', 'second.tape']) transfer.items.add(new File([text], name));
-    document.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
-  }, content);
+  await page.locator('body').drop({ files: [file('first.tape', content), file('second.tape', content)] });
   await expect(page.getByRole('alert')).toContainText('Drop one .tape file at a time');
   await expect(page.locator('#filename')).toHaveText('dropped.tape');
+  await expect(calls(page)).toHaveCount(2);
+  await expect(page.locator('body')).not.toHaveClass(/drop-active/);
 });
 
 test('a stale real-file read cannot overwrite a newer selection', async ({ page }) => {
