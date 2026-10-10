@@ -166,6 +166,8 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 ## Completed in v0.2
 
+- Increased small-text contrast with computed-color browser checks across default, hover, selected and focus states
+
 - Keyboard focus retained through timeline pagination, filter reset and comparison dismissal; hidden file inputs no longer create invisible Tab stops
 
 - CI action runtimes upgraded to reviewed official releases and full commit pins; checkout credentials are not persisted ([maintenance notes](docs/CI_MAINTENANCE.md))
@@ -192,7 +194,7 @@ Open [viewer/index.html](viewer/index.html) from your local clone. Choose a `.ta
 
 1. Extract the tested application adapter into a versioned Spring AI integration module; validate a second application and framework version before promising broad compatibility.
 2. Extend CI reports with opt-in strict rejection of legacy inputs and multi-fixture summaries while preserving the v1 report contract.
-3. Extend the focused keyboard regressions with contrast checks, assistive-technology review and Firefox/WebKit coverage; current real-browser scope is Chromium desktop and mobile emulation.
+3. Extend the focused keyboard regressions with assistive-technology review and Firefox/WebKit coverage; current real-browser scope is Chromium desktop and mobile emulation.
 4. Design explicit safe nested-field projections and per-tool policies without exposing arbitrary strings or silently weakening existing fingerprints.
 5. Add authenticated fixture provenance only with a clear key-management design; current source labels/checksums do not establish origin authenticity.
 

@@ -17,6 +17,93 @@ const tape = rows => 'TOOLTAPE\t1\n' + rows.map((row, index) => [
 ].join('\t')).join('\n') + (rows.length ? '\n' : '');
 const calls = page => page.locator('#timeline button[data-position]');
 
+// Evaluate actual computed colors, including transparent ancestor backgrounds and
+// group opacity. This is intentionally limited to the viewer's solid backgrounds;
+// fail loudly if a gradient, image, blend, or filter makes this model unsuitable.
+function measureTextContrast(element, pseudo = null) {
+  const describe = node => node.tagName.toLowerCase() + (node.id ? '#' + node.id : '') +
+    (node.classList.length ? '.' + [...node.classList].join('.') : '');
+  const parse = value => {
+    const match = value.match(/^rgba?\(([^)]+)\)$/);
+    if (!match) throw new Error('Unsupported computed color: ' + value);
+    const parts = match[1].trim().split(/\s*[,/]\s*|\s+/);
+    if (parts.length !== 3 && parts.length !== 4) throw new Error('Unsupported computed color: ' + value);
+    return parts.map((part, index) => {
+      const number = Number(part.replace(/%$/, ''));
+      const result = part.endsWith('%') ? number / 100 : index < 3 ? number / 255 : number;
+      if (!Number.isFinite(result) || result < 0 || result > 1) throw new Error('Invalid computed color: ' + value);
+      return result;
+    }).concat(parts.length === 3 ? [1] : []);
+  };
+  const over = (front, back) => {
+    const alpha = front[3] + back[3] * (1 - front[3]);
+    return alpha === 0 ? [0, 0, 0, 0] : [0, 1, 2].map(index =>
+      (front[index] * front[3] + back[index] * back[3] * (1 - front[3])) / alpha).concat(alpha);
+  };
+  const layers = [];
+  const addLayer = (style, label) => {
+    for (const property of ['backgroundImage', 'filter', 'backdropFilter', 'textShadow']) {
+      if (style[property] && style[property] !== 'none') {
+        throw new Error('Unsupported ' + property + ' at ' + label + ': ' + style[property]);
+      }
+    }
+    for (const property of ['mixBlendMode', 'backgroundBlendMode']) {
+      if (style[property] && style[property] !== 'normal') {
+        throw new Error('Unsupported ' + property + ' at ' + label + ': ' + style[property]);
+      }
+    }
+    if (style.backgroundClip === 'text') throw new Error('Unsupported backgroundClip at ' + label + ': text');
+    const opacity = Number(style.opacity);
+    if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new Error('Invalid opacity at ' + label);
+    layers.push({ label, background: parse(style.backgroundColor), opacity });
+  };
+  const textStyle = getComputedStyle(element, pseudo);
+  if (pseudo) addLayer(textStyle, describe(element) + pseudo);
+  for (let node = element; node; node = node.parentElement) addLayer(getComputedStyle(node), describe(node));
+  const sourceForeground = parse(textStyle.webkitTextFillColor || textStyle.color);
+  let foreground = sourceForeground, background = [0, 0, 0, 0];
+  // Paint the text and an adjacent background pixel through the same opacity
+  // groups, from the innermost element to the opaque page background.
+  for (const layer of layers) {
+    foreground = over(foreground, layer.background);
+    background = over(background, layer.background);
+    foreground[3] *= layer.opacity;
+    background[3] *= layer.opacity;
+  }
+  if (foreground[3] !== 1 || background[3] !== 1) {
+    throw new Error('No opaque page background for ' + describe(element) + '; cannot assume a canvas color');
+  }
+  const luminance = color => color.slice(0, 3).map(channel =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  const first = luminance(foreground), second = luminance(background);
+  return {
+    text: pseudo === '::placeholder' ? element.getAttribute('placeholder') : element.value || element.textContent,
+    sourceForeground, foreground, background, layers,
+    ratio: (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+  };
+}
+
+async function expectTextContrast(locator, label, samples, { count = 1, pseudo = null } = {}) {
+  await expect(locator, label + ' exists').toHaveCount(count);
+  for (let index = 0; index < count; index++) {
+    const item = locator.nth(index);
+    await expect(item, label + ' is visible').toBeVisible();
+    const measurement = await item.evaluate(measureTextContrast, pseudo);
+    expect(measurement.text.trim(), label + ' contains real text').not.toBe('');
+    samples.push({ label, index, ...measurement });
+    // Compare the unrounded result: 4.499... is a failure, not a rounded pass.
+    expect(measurement.ratio, label + ': ' + JSON.stringify(measurement)).toBeGreaterThanOrEqual(4.5);
+  }
+}
+
+async function attachContrastMeasurements(testInfo, samples) {
+  await testInfo.attach('computed-text-contrast', {
+    body: Buffer.from(JSON.stringify({ project: testInfo.project.name, minimum: 4.5, samples }, null, 2)),
+    contentType: 'application/json'
+  });
+}
+
 async function openFixture(page) {
   await page.getByLabel('Open primary tape', { exact: true }).setInputFiles(fixture);
   await expect(page.locator('#stat-calls')).toHaveText('2');
@@ -81,6 +168,170 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => {
   expect(page.__tooltapeErrors, 'no uncaught browser errors').toEqual([]);
   expect(page.__tooltapeRequests, 'the offline viewer makes no non-file requests').toEqual([]);
+});
+
+test('contrast measurement composites alpha and group opacity and rejects background images', async ({ page }) => {
+  await page.evaluate(() => {
+    const outer = document.createElement('div');
+    outer.style.backgroundColor = 'rgb(0, 0, 0)';
+    const group = document.createElement('div');
+    group.style.cssText = 'background-color: rgba(255, 255, 255, .5); opacity: .5';
+    const text = document.createElement('span');
+    text.id = 'contrast-probe';
+    text.textContent = 'Measured text';
+    text.style.cssText = 'background-color: rgba(0, 0, 0, .5); color: rgba(255, 255, 255, .5); opacity: .5';
+    group.append(text);
+    outer.append(group);
+    document.body.append(outer);
+  });
+  const probe = page.locator('#contrast-probe');
+  const translucent = await probe.evaluate(measureTextContrast);
+  expect(translucent.foreground).toEqual([0.28125, 0.28125, 0.28125, 1]);
+  expect(translucent.background).toEqual([0.1875, 0.1875, 0.1875, 1]);
+  expect(translucent.ratio).toBeCloseTo(1.4405324327872426, 12);
+  await probe.evaluate(element => {
+    element.style.cssText = 'color: white';
+    element.parentElement.style.cssText = '';
+  });
+  expect((await probe.evaluate(measureTextContrast)).ratio).toBe(21);
+  await probe.evaluate(element => {
+    element.parentElement.style.backgroundImage = 'linear-gradient(black, white)';
+  });
+  await expect(probe.evaluate(measureTextContrast)).rejects.toThrow(/Unsupported backgroundImage/);
+});
+
+test('small labels and supporting text clear 4.5:1 on their rendered dark backgrounds', async ({ page }, testInfo) => {
+  const samples = [];
+  const check = (selector, count = 1, state = 'loaded') =>
+    expectTextContrast(page.locator(selector), state + ' ' + selector, samples, { count });
+  for (const selector of ['.empty-hint', '.empty p', '#load-example', '#empty-open']) {
+    await check(selector, 1, 'empty');
+  }
+  await page.locator('#open-file').setInputFiles(sessionFixture);
+  await expect(page.locator('#stat-calls')).toHaveText('2');
+  // Disabled Compare on the empty screen is an inactive control, not sampled.
+  // All text below is visible and enabled. The mobile layout hides .version.
+  if (testInfo.project.name.startsWith('mobile')) await expect(page.locator('.version')).toBeHidden();
+  else await check('.version');
+  for (const [selector, count] of [
+    ['.local', 1], ['.eyebrow', 1], ['.intro', 1], ['#open-button', 1], ['#compare-button', 1],
+    ['.recording-label', 4], ['.recording-value', 4], ['#recording-note', 1], ['.recording-provenance', 1],
+    ['.stat-label', 4], ['.stat-note', 4], ['.stat-unit', 2], ['#filename', 1], ['#timeline-count', 1],
+    ['.error-toggle', 1], ['.timeline-foot > span', 2], ['.inspect-label', 1], ['.inspect-meta > span', 2],
+    ['.payload-heading h3', 2], ['.payload-kind', 2], ['.code', 2], ['.inspect-top .status', 1],
+    ['.footer > span', 2], ['.footer strong', 1], ['.footer .key', 1], ['summary', 1]
+  ]) await check(selector, count);
+
+  await page.locator('#compare-file').setInputFiles(sessionFixture);
+  await expect(page.locator('#comparison')).toBeVisible();
+  await expect(page.locator('#comparison')).not.toHaveClass(/different/);
+  await check('#compare-title', 1, 'matching comparison');
+  await check('#comparison .compare-note', 2, 'matching comparison');
+  await check('#clear-compare', 1, 'matching comparison');
+  await check('#inspector .compare-note', 1, 'matching comparison');
+
+  const original = await fs.readFile(sessionFixture, 'utf8');
+  const metadataField = original.split('\n')[1].split('\t')[1];
+  const metadata = JSON.parse(Buffer.from(metadataField, 'base64url').toString('utf8'));
+  const changed = original.replace(metadataField, encode(JSON.stringify({ ...metadata, policyId: 'sha256:' + '0'.repeat(64) })))
+    .replace(encode('{"temperature":22}'), encode('{"temperature":23}'));
+  await page.locator('#compare-file').setInputFiles(file('contrast-drift.tape', changed));
+  await expect(page.locator('#comparison')).toHaveClass(/different/);
+  await expect(page.locator('#compare-policy-warning')).toBeVisible();
+  await check('#compare-title', 1, 'different comparison');
+  await check('#comparison .compare-note', 2, 'different comparison');
+  await check('#compare-policy-warning', 1, 'different comparison');
+  await check('#jump-divergence', 1, 'different comparison');
+  await check('#clear-compare', 1, 'different comparison');
+
+  await page.locator('#open-file').setInputFiles(file('incomplete.tape', original.replace(/END\t2\n$/, '')));
+  await expect(page.locator('#recording')).toHaveClass(/incomplete/);
+  await check('#recording-completeness', 1, 'incomplete recording');
+  await check('#recording-note', 1, 'incomplete recording');
+  await check('.recording-provenance', 1, 'incomplete recording');
+  await page.locator('#open-file').setInputFiles(file('invalid.tape', 'TOOLTAPE\t1'));
+  await expect(page.locator('#notice')).toBeVisible();
+  await check('#notice', 1, 'validation error');
+  await attachContrastMeasurements(testInfo, samples);
+});
+
+test('call preview, index, duration, and status clear 4.5:1 in normal, hover, selected, and focus states', async ({ page }, testInfo) => {
+  await openFixture(page);
+  const samples = [];
+  const first = calls(page).first(), second = calls(page).nth(1);
+  const check = async (row, state) => {
+    for (const selector of ['.event-index', '.event-name', '.event-summary', '.duration', '.status']) {
+      await expectTextContrast(row.locator(selector), state + ' ' + selector, samples);
+    }
+  };
+  await page.mouse.move(0, 0);
+  await expect(first).toHaveAttribute('aria-pressed', 'true');
+  await expect(second).toHaveAttribute('aria-pressed', 'false');
+  await check(first, 'selected error row');
+  await check(second, 'unselected success row');
+  await second.hover();
+  expect(await second.evaluate(element => element.matches(':hover'))).toBe(true);
+  await expect(second).toHaveAttribute('aria-pressed', 'false');
+  await check(second, 'unselected:hover');
+
+  await page.mouse.move(0, 0);
+  await first.focus();
+  await page.keyboard.press('Tab');
+  await expect(second).toBeFocused();
+  expect(await second.evaluate(element => element.matches(':focus-visible'))).toBe(true);
+  await expect(second).toHaveAttribute('aria-pressed', 'false');
+  await check(second, 'unselected:focus-visible');
+  await page.keyboard.press('Enter');
+  await expect(second).toHaveAttribute('aria-pressed', 'true');
+  await expect(second).toBeFocused();
+  expect(await second.evaluate(element => element.matches(':focus-visible'))).toBe(true);
+  await check(second, 'selected:focus-visible');
+  await second.hover();
+  expect(await second.evaluate(element => element.matches(':hover'))).toBe(true);
+  await check(second, 'selected:hover');
+  await page.getByRole('searchbox').focus();
+  await page.mouse.move(0, 0);
+  await check(second, 'selected success row');
+  await expect(first).toHaveAttribute('aria-pressed', 'false');
+  await check(first, 'unselected error row');
+  await attachContrastMeasurements(testInfo, samples);
+});
+
+test('search placeholder and disclosure text clear 4.5:1 during hover and keyboard focus', async ({ page }, testInfo) => {
+  await openFixture(page);
+  const samples = [];
+  const search = page.getByRole('searchbox'), summary = page.locator('summary');
+  const checkPlaceholder = state => expectTextContrast(search, state + ' search::placeholder', samples, { pseudo: '::placeholder' });
+  await checkPlaceholder('normal');
+  await search.hover();
+  expect(await search.evaluate(element => element.matches(':hover'))).toBe(true);
+  await checkPlaceholder('hover');
+  await page.mouse.move(0, 0);
+  await page.locator('#open-button').focus();
+  await page.keyboard.press('Tab');
+  await expect(search).toBeFocused();
+  expect(await search.evaluate(element => element.matches(':focus-visible'))).toBe(true);
+  await checkPlaceholder('focus-visible');
+  await search.fill('weather');
+  await expectTextContrast(search, 'entered search text', samples);
+  await search.fill('no matching tool');
+  await expectTextContrast(page.locator('.no-results'), 'empty filter result', samples);
+  await search.press('Escape');
+
+  await summary.hover();
+  expect(await summary.evaluate(element => element.matches(':hover'))).toBe(true);
+  await expectTextContrast(summary, 'summary:hover', samples);
+  await page.mouse.move(0, 0);
+  await page.getByLabel('recorded exception', { exact: true }).focus();
+  await page.keyboard.press('Tab');
+  await expect(summary).toBeFocused();
+  expect(await summary.evaluate(element => element.matches(':focus-visible'))).toBe(true);
+  await expectTextContrast(summary, 'summary:focus-visible', samples);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('details')).toHaveAttribute('open', '');
+  await expectTextContrast(summary, 'expanded summary:focus-visible', samples);
+  await expectTextContrast(page.locator('details p'), 'expanded disclosure text', samples);
+  await attachContrastMeasurements(testInfo, samples);
 });
 
 test('opens the real fixture through the file chooser and supports choosing it again', async ({ page }) => {

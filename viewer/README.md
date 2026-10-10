@@ -24,6 +24,14 @@ Files are limited to 16 MiB and 50,000 calls. The timeline initially renders 250
 
 These are targeted keyboard behaviors verified in desktop/mobile-emulated Chromium. They are not a full accessibility audit or screen-reader compatibility certification.
 
+## Text contrast
+
+Small supporting text uses `#87948f` rather than the former `#65716e`. On the selected timeline background this raises the computed contrast ratio from about 3.04:1 to 4.89:1; on the standard panel it rises from about 3.56:1 to 5.72:1. The dark palette, primary text and status colors are retained.
+
+Browser checks use actual computed colors, including transparency and opacity, for sampled labels, previews, placeholder text, footer content and call states (default, hover, selected and keyboard focus). They require at least 4.5:1 for these small-text samples, following the [W3C contrast-minimum explanation](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html). Comparisons use unrounded ratios.
+
+This is targeted text-contrast verification in Chromium's existing dark theme, not a complete WCAG audit. Font readability, non-text controls, forced-colors modes, other browsers and assistive technologies require separate review.
+
 ## Recording details
 
 The compact details panel shows the schema, recording completeness, provenance source, and shortened capture-policy SHA-256 identifier. Hover over the policy ID to inspect the full value; its accessible label also includes the full value. Metadata is self-reported and does not authenticate a recording.
@@ -96,6 +104,6 @@ For real offline Chromium interactions, responsive-layout assertions, and baseli
 
 ## Implementation and next verification
 
-Completed: keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
+Completed: improved small-text contrast with computed browser checks; keyboard focus continuity and visible-only Tab navigation; v1 compatibility, strict v2 metadata and closure inspection, policy-aware comparison warnings, privacy-preserving text rendering, and reproducible dependency-free checks.
 
-Next verification: keep screenshots synchronized with viewer changes; add measured contrast checks, physical-device testing, Firefox/Safari coverage and an assistive-technology audit.
+Next verification: keep screenshots synchronized with viewer changes; add physical-device testing, Firefox/Safari coverage and an assistive-technology audit.
